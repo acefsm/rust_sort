@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-**A blazingly fast, drop-in replacement for GNU sort with up to 32x performance improvements**
+**A blazingly fast, drop-in replacement for GNU sort with up to 33x performance improvements**
 
 rust-sort is a production-ready implementation of the GNU sort utility, rewritten in Rust with cutting-edge optimizations including zero-copy operations, SIMD acceleration, and intelligent algorithm selection. Achieve dramatic performance gains while maintaining 100% compatibility with GNU sort.
 
@@ -35,33 +35,33 @@ Based on fresh comprehensive benchmarks (December 2024) with LC_COLLATE support,
 | 100K lines  | Numeric (`-n`) | 0.04s       | 0.01s          | **<0.01s**    | **>40x**          | **Fast** |
 | 100K lines  | Text      | 0.05s       | <0.01s         | **<0.01s**    | **>50x**          | **Equal** |
 | 100K lines  | Reverse (`-rn`) | 0.04s     | 0.02s          | **<0.01s**    | **>40x**          | **2x** |
-| 100K lines  | Unique (`-u`) | 0.01s       | N/A            | **<0.01s**    | **>10x**          | **-** |
-| 100K lines  | Numeric unique (`-nu`) | 0.02s | N/A          | **<0.01s**    | **>20x**          | **-** |
-| 100K lines  | Case-insensitive (`-f`) | 0.06s | N/A        | **<0.01s**    | **>60x**          | **-** |
-| 100K lines  | Random (`-R`) | 0.05s       | N/A            | **<0.01s**    | **>50x**          | **-** |
-| 100K lines  | Stable (`-s`) | 0.02s       | N/A            | **<0.01s**    | **>20x**          | **-** |
-| 100K lines  | General (`-g`) | 0.28s       | N/A            | **0.02s**     | **14.0x**         | **-** |
-| 100K lines  | Combined (`-nru`) | 0.03s    | N/A            | **<0.01s**    | **>30x**          | **-** |
-| 1M lines    | Numeric (`-n`) | 1.03s       | 0.08s          | **0.03s**     | **34.3x**         | **2.7x** |
-| 1M lines    | Text      | 0.60s       | 0.07s          | **0.04s**     | **15.0x**         | **1.8x** |
-| 1M lines    | Reverse (`-rn`) | 0.97s     | 0.09s          | **0.03s**     | **32.3x**         | **3.0x** |
-| 1M lines    | Unique (`-u`) | 0.16s       | N/A            | **0.06s**     | **2.7x**          | **-** |
-| 1M lines    | Numeric unique (`-nu`) | 0.30s | N/A          | **0.02s**     | **15.0x**         | **-** |
-| 1M lines    | Case-insensitive (`-f`) | 0.84s | N/A        | **0.05s**     | **16.8x**         | **-** |
-| 1M lines    | Random (`-R`) | 0.75s       | N/A            | **0.04s**     | **18.8x**         | **-** |
-| 1M lines    | Stable (`-s`) | 0.26s       | N/A            | **0.06s**     | **4.3x**          | **-** |
-| 1M lines    | General (`-g`) | 2.27s       | N/A            | **0.17s**     | **13.4x**         | **-** |
-| 1M lines    | Combined (`-nru`) | 0.34s    | N/A            | **0.02s**     | **17.0x**         | **-** |
-| **10M lines**| **Numeric (`-n`)**| **6.31s**  | **0.80s**      | **0.48s**     | **13.1x**         | **1.7x** |
-| **10M lines**| **Text**   | **6.08s**  | **0.75s**      | **0.49s**     | **12.4x**         | **1.5x** |
-| **10M lines**| **Reverse (`-rn`)**| **6.59s** | **0.84s**      | **0.47s**     | **14.0x**         | **1.8x** |
-| **10M lines**| **Unique (`-u`)**| **2.51s** | **N/A**        | **0.57s**     | **4.4x**          | **-** |
-| **10M lines**| **Numeric unique (`-nu`)**| **2.31s** | **N/A**   | **0.39s**     | **5.9x**          | **-** |
-| **10M lines**| **Case-insensitive (`-f`)**| **8.52s** | **N/A**   | **0.44s**     | **19.4x**         | **-** |
-| **10M lines**| **Random (`-R`)**| **4.73s** | **N/A**        | **0.42s**     | **11.3x**         | **-** |
-| **10M lines**| **Stable (`-s`)**| **3.21s** | **N/A**        | **0.58s**     | **5.5x**          | **-** |
-| **10M lines**| **General (`-g`)**| **23.96s** | **N/A**       | **2.50s**     | **9.6x**          | **-** |
-| **10M lines**| **Combined (`-nru`)**| **2.87s** | **N/A**     | **0.35s**     | **8.2x**          | **-** |
+| 100K lines  | Unique (`-u`) | 0.01s       | <0.01s         | **<0.01s**    | **>10x**          | **Equal** |
+| 100K lines  | Numeric unique (`-nu`) | 0.02s | <0.01s         | **<0.01s**    | **>20x**          | **Equal** |
+| 100K lines  | Case-insensitive (`-f`) | 0.06s | 0.01s          | **<0.01s**    | **>60x**          | **Fast** |
+| 100K lines  | Random (`-R`) | 0.05s       | 0.01s          | **<0.01s**    | **>50x**          | **Fast** |
+| 100K lines  | Stable (`-s`) | 0.02s       | <0.01s         | **<0.01s**    | **>20x**          | **Equal** |
+| 100K lines  | General (`-g`) | 0.28s       | 0.02s          | **0.02s**     | **14.0x**         | **1.0x** |
+| 100K lines  | Combined (`-nru`) | 0.03s    | <0.01s         | **<0.01s**    | **>30x**          | **Equal** |
+| 1M lines    | Numeric (`-n`) | 1.00s       | 0.08s          | **0.03s**     | **33.3x**         | **2.7x** |
+| 1M lines    | Text      | 0.57s       | 0.06s          | **0.03s**     | **19.0x**         | **2.0x** |
+| 1M lines    | Reverse (`-rn`) | 0.95s     | 0.08s          | **0.03s**     | **31.7x**         | **2.7x** |
+| 1M lines    | Unique (`-u`) | 0.15s       | 0.04s          | **0.06s**     | **2.5x**          | **0.7x** |
+| 1M lines    | Numeric unique (`-nu`) | 0.29s | 0.05s          | **0.02s**     | **14.5x**         | **2.5x** |
+| 1M lines    | Case-insensitive (`-f`) | 0.73s | 0.10s          | **0.05s**     | **14.6x**         | **2.0x** |
+| 1M lines    | Random (`-R`) | 0.74s       | 0.10s          | **0.04s**     | **18.5x**         | **2.5x** |
+| 1M lines    | Stable (`-s`) | 0.24s       | 0.04s          | **0.06s**     | **4.0x**          | **0.7x** |
+| 1M lines    | General (`-g`) | 2.29s       | 0.21s          | **0.17s**     | **13.5x**         | **1.2x** |
+| 1M lines    | Combined (`-nru`) | 0.32s    | 0.06s          | **0.02s**     | **16.0x**         | **3.0x** |
+| **10M lines**| **Numeric (`-n`)**| **6.21s**  | **0.77s**      | **0.45s**     | **13.8x**         | **1.7x** |
+| **10M lines**| **Text**   | **6.00s**  | **0.75s**      | **0.43s**     | **14.0x**         | **1.7x** |
+| **10M lines**| **Reverse (`-rn`)**| **6.56s** | **0.82s**      | **0.47s**     | **14.0x**         | **1.7x** |
+| **10M lines**| **Unique (`-u`)**| **2.50s** | **0.39s**      | **0.55s**     | **4.5x**          | **0.7x** |
+| **10M lines**| **Numeric unique (`-nu`)**| **2.32s** | **0.56s** | **0.31s**     | **7.5x**          | **1.8x** |
+| **10M lines**| **Case-insensitive (`-f`)**| **8.09s** | **1.22s** | **0.42s**     | **19.3x**         | **2.9x** |
+| **10M lines**| **Random (`-R`)**| **4.84s** | **0.75s**      | **0.38s**     | **12.7x**         | **2.0x** |
+| **10M lines**| **Stable (`-s`)**| **3.28s** | **0.31s**      | **0.55s**     | **6.0x**          | **0.6x** |
+| **10M lines**| **General (`-g`)**| **24.17s** | **2.46s**     | **2.24s**     | **10.8x**         | **1.1x** |
+| **10M lines**| **Combined (`-nru`)**| **2.80s** | **0.56s**   | **0.32s**     | **8.8x**          | **1.8x** |
 
 <details>
 <summary>📈 View detailed benchmark methodology</summary>
