@@ -23,6 +23,9 @@ impl CoreSort {
     }
 
     pub fn sort(&self) -> io::Result<()> {
+        // Initialize locale configuration at startup
+        let _locale_config = crate::locale::LocaleConfig::get();
+        
         let input_files = &self.args.files;
         
         // Input validation

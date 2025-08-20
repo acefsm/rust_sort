@@ -61,9 +61,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-echo "================================================"
-echo "    🚀 RUST-SORT PERFORMANCE BENCHMARK 🚀"
-echo "================================================"
+echo -e "${BOLD}${HEADER}================================================${NC}"
+echo -e "${BOLD}${HIGHLIGHT}    🚀 RUST-SORT PERFORMANCE BENCHMARK 🚀${NC}"
+echo -e "${BOLD}${HEADER}================================================${NC}"
 echo "Reference sort: $REFERENCE_NAME ($REFERENCE_SORT)"
 if [ ${#ADDITIONAL_SORTS[@]} -gt 0 ]; then
     echo "Additional sorts:"
@@ -73,14 +73,27 @@ if [ ${#ADDITIONAL_SORTS[@]} -gt 0 ]; then
 fi
 echo ""
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-NC='\033[0m'
+# Color definitions based on xoria256 theme
+# Using 256-color ANSI codes for better visual appeal
+HEADER='\033[38;5;180m'    # color180 - sandy/warm yellow for headers
+SUCCESS='\033[38;5;114m'   # color114 - green for success
+WARNING='\033[38;5;228m'   # color228 - bright yellow for warnings  
+ERROR='\033[38;5;174m'     # color174 - reddish for errors
+INFO='\033[38;5;73m'       # color73 - cyan/blue for info
+SUBINFO='\033[38;5;60m'    # color60 - darker blue for secondary info
+TEST='\033[38;5;110m'      # color110 - light blue for test names
+HIGHLIGHT='\033[38;5;182m' # color182 - light pink for highlights
+DIM='\033[38;5;244m'       # color244 - gray for less important text
+BOLD='\033[1m'             # Bold text
+NC='\033[0m'               # No Color - reset
+
+# Compatibility aliases for easier migration
+GREEN=$SUCCESS
+YELLOW=$WARNING
+BLUE=$INFO
+RED=$ERROR
+CYAN=$TEST
+MAGENTA=$HIGHLIGHT
 
 # Statistics
 PASSED=0
@@ -258,7 +271,7 @@ test_sort_all() {
         eval "user_time=\${additional_${i}_user}"
         eval "sys_time=\${additional_${i}_sys}"
         eval "mem_usage=\${additional_${i}_mem}"
-        echo -e "    ${YELLOW}${ADDITIONAL_NAMES[$i]}:${NC}"
+        echo -e "    ${BOLD}${WARNING}${ADDITIONAL_NAMES[$i]}:${NC}"
         echo -e "      Time: ${real_time}s (user: ${user_time}s, sys: ${sys_time}s)"
         echo -e "      Memory: ${mem_usage}MB"
     done
@@ -400,7 +413,7 @@ run_test_suite() {
     local suffix=$2
     local label=$3
     
-    echo -e "${YELLOW}=== TESTING WITH ${label} ===${NC}\n"
+    echo -e "${BOLD}${HEADER}=== TESTING WITH ${label} ===${NC}\n"
     
     generate_data $size $suffix
     
@@ -418,7 +431,7 @@ run_test_suite() {
 
 # Check sorted functionality test
 test_check_sorted() {
-    echo -e "${YELLOW}=== CHECK SORTED TEST ===${NC}\n"
+    echo -e "${BOLD}${HEADER}=== CHECK SORTED TEST ===${NC}\n"
     
     # Generate sorted file
     sort -n test_nums_100k.txt > test_sorted.txt
@@ -456,7 +469,7 @@ test_check_sorted
 
 # Large data tests if requested
 if [ "$LARGE_TESTS" = "true" ]; then
-    echo -e "${YELLOW}=== LARGE DATA TESTS ===${NC}\n"
+    echo -e "${BOLD}${HEADER}=== LARGE DATA TESTS ===${NC}\n"
     
     # 10M test
     run_test_suite 10000000 "10m" "10M lines"
@@ -464,16 +477,16 @@ fi
 
 # Extra large data tests if requested
 if [ "$EXTRA_LARGE_TESTS" = "true" ]; then
-    echo -e "${YELLOW}=== EXTRA LARGE DATA TESTS ===${NC}\n"
+    echo -e "${BOLD}${HEADER}=== EXTRA LARGE DATA TESTS ===${NC}\n"
     
     # 30M test
     run_test_suite 30000000 "30m" "30M lines"
 fi
 
 # Summary
-echo "================================================"
-echo -e "${YELLOW}FINAL SUMMARY${NC}"
-echo "================================================"
+echo -e "${BOLD}${HEADER}================================================${NC}"
+echo -e "${BOLD}${HEADER}FINAL SUMMARY${NC}"
+echo -e "${BOLD}${HEADER}================================================${NC}"
 echo -e "Tests passed: ${GREEN}$PASSED${NC}"
 echo -e "Tests failed: ${RED}$FAILED${NC}"
 
@@ -487,4 +500,4 @@ fi
 echo ""
 echo "For large data tests (10M): ./benchmark.sh --large"
 echo "For extra large tests (30M): ./benchmark.sh --extralarge"
-echo "================================================"
+echo -e "${BOLD}${HEADER}================================================${NC}"

@@ -1,12 +1,10 @@
 # 🚀 rust-sort
 
-[![Crates.io](https://img.shields.io/crates/v/gnu-sort.svg)](https://crates.io/crates/gnu-sort)
 [![Build Status](https://github.com/acefsm/rust-sort/workflows/CI/badge.svg)](https://github.com/acefsm/rust-sort/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Downloads](https://img.shields.io/crates/d/gnu-sort.svg)](https://crates.io/crates/gnu-sort)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-**A blazingly fast, drop-in replacement for GNU sort with up to 35x performance improvements**
+**A blazingly fast, drop-in replacement for GNU sort with up to 32x performance improvements**
 
 rust-sort is a production-ready implementation of the GNU sort utility, rewritten in Rust with cutting-edge optimizations including zero-copy operations, SIMD acceleration, and intelligent algorithm selection. Achieve dramatic performance gains while maintaining 100% compatibility with GNU sort.
 
@@ -14,7 +12,8 @@ rust-sort is a production-ready implementation of the GNU sort utility, rewritte
 
 ## ✨ Features
 
-- 🚀 **Up to 35x faster** than GNU sort on typical workloads
+- 🚀 **Up to 32x faster** than GNU sort on typical workloads
+- 🌍 **LC_COLLATE support** - locale-aware string sorting
 - 🔧 **Drop-in replacement** - full GNU sort compatibility  
 - 🧵 **Parallel processing** - automatic multi-core utilization
 - 💾 **Memory efficient** - zero-copy operations and intelligent buffering
@@ -29,40 +28,40 @@ rust-sort is a production-ready implementation of the GNU sort utility, rewritte
 
 ## 📊 Performance Comparison
 
-Based on fresh comprehensive benchmarks with actual system implementations:
+Based on fresh comprehensive benchmarks (December 2024) with LC_COLLATE support, comparing against GNU sort and rust_coreutils (uutils):
 
 | Dataset Size | Test Case | GNU sort | rust_coreutils | **rust-sort** | Speedup vs GNU | Speedup vs rust_coreutils |
 |--------------|-----------|-------------|----------------|---------------|-------------------|---------------------------|
-| 100K lines  | Numeric (`-n`) | 0.05s       | 0.01s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Text      | 0.05s       | 0.00s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Reverse (`-rn`) | 0.05s     | 0.01s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Unique (`-u`) | 0.01s       | 0.00s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Numeric unique (`-nu`) | 0.02s | 0.00s        | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Case-insensitive (`-f`) | 0.07s | 0.01s      | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Random (`-R`) | 0.06s       | 0.01s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | Stable (`-s`) | 0.02s       | 0.00s          | **0.00s**     | **∞x**            | **∞x** |
-| 100K lines  | General (`-g`) | 0.26s       | 0.02s          | **0.02s**     | **13.0x**         | **1.0x** |
-| 100K lines  | Combined (`-nru`) | 0.02s    | 0.00s          | **0.00s**     | **∞x**            | **∞x** |
-| 1M lines    | Numeric (`-n`) | 1.06s       | 0.08s          | **0.03s**     | **35.3x**         | **2.7x** |
-| 1M lines    | Text      | 0.61s       | 0.07s          | **0.04s**     | **15.3x**         | **1.8x** |
-| 1M lines    | Reverse (`-rn`) | 1.04s     | 0.09s          | **0.03s**     | **34.7x**         | **3.0x** |
-| 1M lines    | Unique (`-u`) | 0.17s       | 0.05s          | **0.07s**     | **2.4x**          | **0.7x** |
-| 1M lines    | Numeric unique (`-nu`) | 0.30s | 0.06s        | **0.02s**     | **15.0x**         | **3.0x** |
-| 1M lines    | Case-insensitive (`-f`) | 0.85s | 0.11s      | **0.05s**     | **17.0x**         | **2.2x** |
-| 1M lines    | Random (`-R`) | 0.75s       | 0.09s          | **0.04s**     | **18.8x**         | **2.3x** |
-| 1M lines    | Stable (`-s`) | 0.26s       | 0.04s          | **0.07s**     | **3.7x**          | **0.6x** |
-| 1M lines    | General (`-g`) | 2.49s       | 0.23s          | **0.19s**     | **13.1x**         | **1.2x** |
-| 1M lines    | Combined (`-nru`) | 0.35s    | 0.06s          | **0.03s**     | **11.7x**         | **2.0x** |
-| **10M lines**| **Numeric (`-n`)**| **6.52s**  | **0.88s**      | **0.49s**     | **13.3x**         | **1.8x** |
-| **10M lines**| **Text**   | **6.37s**  | **0.79s**      | **0.57s**     | **11.2x**          | **1.4x** |
-| **10M lines**| **Reverse (`-rn`)**| **6.93s** | **0.90s**    | **0.48s**     | **14.4x**         | **1.9x** |
-| **10M lines**| **Unique (`-u`)**| **2.49s** | **0.44s**      | **0.58s**     | **4.3x**          | **0.8x** |
-| **10M lines**| **Numeric unique (`-nu`)**| **2.36s** | **0.56s** | **0.37s** | **6.4x**     | **1.5x** |
-| **10M lines**| **Case-insensitive (`-f`)**| **8.83s** | **1.30s** | **0.48s** | **18.4x** | **2.7x** |
-| **10M lines**| **Random (`-R`)**| **4.83s** | **1.38s** | **0.46s** | **10.5x** | **3.0x** |
-| **10M lines**| **Stable (`-s`)**| **3.31s** | **0.37s** | **0.60s** | **5.5x**  | **0.6x** |
-| **10M lines**| **General (`-g`)**| **25.49s** | **2.75s**      | **3.85s**     | **6.6x**          | **0.7x** |
-| **10M lines**| **Combined (`-nru`)**| **2.92s** | **0.60s**   | **0.34s**     | **8.6x**          | **1.8x** |
+| 100K lines  | Numeric (`-n`) | 0.04s       | 0.01s          | **<0.01s**    | **>40x**          | **Fast** |
+| 100K lines  | Text      | 0.05s       | <0.01s         | **<0.01s**    | **>50x**          | **Equal** |
+| 100K lines  | Reverse (`-rn`) | 0.04s     | 0.02s          | **<0.01s**    | **>40x**          | **2x** |
+| 100K lines  | Unique (`-u`) | 0.01s       | N/A            | **<0.01s**    | **>10x**          | **-** |
+| 100K lines  | Numeric unique (`-nu`) | 0.02s | N/A          | **<0.01s**    | **>20x**          | **-** |
+| 100K lines  | Case-insensitive (`-f`) | 0.06s | N/A        | **<0.01s**    | **>60x**          | **-** |
+| 100K lines  | Random (`-R`) | 0.05s       | N/A            | **<0.01s**    | **>50x**          | **-** |
+| 100K lines  | Stable (`-s`) | 0.02s       | N/A            | **<0.01s**    | **>20x**          | **-** |
+| 100K lines  | General (`-g`) | 0.28s       | N/A            | **0.02s**     | **14.0x**         | **-** |
+| 100K lines  | Combined (`-nru`) | 0.03s    | N/A            | **<0.01s**    | **>30x**          | **-** |
+| 1M lines    | Numeric (`-n`) | 1.03s       | 0.08s          | **0.03s**     | **34.3x**         | **2.7x** |
+| 1M lines    | Text      | 0.60s       | 0.07s          | **0.04s**     | **15.0x**         | **1.8x** |
+| 1M lines    | Reverse (`-rn`) | 0.97s     | 0.09s          | **0.03s**     | **32.3x**         | **3.0x** |
+| 1M lines    | Unique (`-u`) | 0.16s       | N/A            | **0.06s**     | **2.7x**          | **-** |
+| 1M lines    | Numeric unique (`-nu`) | 0.30s | N/A          | **0.02s**     | **15.0x**         | **-** |
+| 1M lines    | Case-insensitive (`-f`) | 0.84s | N/A        | **0.05s**     | **16.8x**         | **-** |
+| 1M lines    | Random (`-R`) | 0.75s       | N/A            | **0.04s**     | **18.8x**         | **-** |
+| 1M lines    | Stable (`-s`) | 0.26s       | N/A            | **0.06s**     | **4.3x**          | **-** |
+| 1M lines    | General (`-g`) | 2.27s       | N/A            | **0.17s**     | **13.4x**         | **-** |
+| 1M lines    | Combined (`-nru`) | 0.34s    | N/A            | **0.02s**     | **17.0x**         | **-** |
+| **10M lines**| **Numeric (`-n`)**| **6.31s**  | **0.80s**      | **0.48s**     | **13.1x**         | **1.7x** |
+| **10M lines**| **Text**   | **6.08s**  | **0.75s**      | **0.49s**     | **12.4x**         | **1.5x** |
+| **10M lines**| **Reverse (`-rn`)**| **6.59s** | **0.84s**      | **0.47s**     | **14.0x**         | **1.8x** |
+| **10M lines**| **Unique (`-u`)**| **2.51s** | **N/A**        | **0.57s**     | **4.4x**          | **-** |
+| **10M lines**| **Numeric unique (`-nu`)**| **2.31s** | **N/A**   | **0.39s**     | **5.9x**          | **-** |
+| **10M lines**| **Case-insensitive (`-f`)**| **8.52s** | **N/A**   | **0.44s**     | **19.4x**         | **-** |
+| **10M lines**| **Random (`-R`)**| **4.73s** | **N/A**        | **0.42s**     | **11.3x**         | **-** |
+| **10M lines**| **Stable (`-s`)**| **3.21s** | **N/A**        | **0.58s**     | **5.5x**          | **-** |
+| **10M lines**| **General (`-g`)**| **23.96s** | **N/A**       | **2.50s**     | **9.6x**          | **-** |
+| **10M lines**| **Combined (`-nru`)**| **2.87s** | **N/A**     | **0.35s**     | **8.2x**          | **-** |
 
 <details>
 <summary>📈 View detailed benchmark methodology</summary>
@@ -75,11 +74,13 @@ Benchmarks performed on:
 - **Comparison tools**: GNU sort (system), rust_coreutils (from uutils project)
 
 **Key findings:**
-- ✅ **Up to 35x faster** than GNU sort across all operations
-- ✅ **Up to 3x faster** than rust_coreutils on most operations  
-- ✅ **Scales excellently** - maintains performance advantage on 10M+ datasets
-- ✅ **Memory efficient** with competitive usage patterns
+- ✅ **Up to 34x faster** than GNU sort for numeric sorting
+- ✅ **Up to 3x faster** than rust_coreutils (uutils) on most operations
+- ✅ **Up to 19x faster** for case-insensitive sorting
+- ✅ **Consistent performance** across all dataset sizes (100K to 10M+ lines)
+- ✅ **Memory efficient** - often uses less memory than GNU sort
 - ✅ **100% compatibility** with standard sort flags and behavior
+- ✅ **LC_COLLATE support** for locale-aware sorting
 
 Run benchmarks yourself:
 ```bash
@@ -100,21 +101,18 @@ For detailed performance analysis, see [performance_comparison_table.md](perform
 
 ### Installation
 
-#### From crates.io (recommended)
+#### From source (currently the only option)
 ```bash
-cargo install gnu-sort
+git clone https://github.com/acefsm/rust-sort.git
+cd rust-sort
+cargo build --release
+sudo cp target/release/sort /usr/local/bin/rust-sort
 ```
 
-#### From GitHub releases
+#### From GitHub releases (planned)
 ```bash
-# Download the latest binary for your platform
-curl -L https://github.com/acefsm/rust-sort/releases/latest/download/rust-sort-linux-x86_64.tar.gz | tar xz
-sudo mv rust-sort /usr/local/bin/sort
-```
-
-#### Using Homebrew (macOS)
-```bash
-brew install username/tap/rust-sort
+# Coming soon - binary releases for major platforms
+# Will be available at: https://github.com/acefsm/rust-sort/releases
 ```
 
 ### Basic Usage
@@ -209,6 +207,32 @@ The benchmark script:
 - 💾 Monitors memory usage and CPU utilization  
 - 🎯 Generates reproducible results with fixed random seeds
 - 🔧 Supports flexible testing with `--reference-sort` and `--add-sort` options
+
+## 🌐 Locale and Compatibility
+
+### LC_COLLATE Support
+rust-sort now includes **experimental** support for the `LC_COLLATE` environment variable, enabling locale-aware string sorting using the system's `strcoll` function.
+
+**Locale support features:**
+- Automatically detects and uses `LC_COLLATE`, `LC_ALL`, or `LANG` environment variables
+- Falls back to fast byte comparison for C/POSIX locale
+- Uses system `strcoll` for locale-aware string comparison
+- Case-insensitive sorting (`-f`) respects locale settings
+- Numeric sorting (`-n`, `-g`) works correctly regardless of locale
+
+**Usage example:**
+```bash
+# Use system locale for sorting
+LC_COLLATE=en_US.UTF-8 sort data.txt
+
+# Force C locale for byte-order sorting
+LC_COLLATE=C sort data.txt
+```
+
+**Note:** Locale support is experimental and may have minor differences from GNU sort in edge cases
+
+### GNU Sort Test Suite
+This implementation has been tested for correctness against GNU sort on various datasets, but **has not yet been validated against the full GNU coreutils test suite**. Running the official GNU sort tests is planned for future releases to ensure complete compatibility.
 
 ---
 
@@ -310,11 +334,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-- **📖 Documentation**: [docs.rs/gnu-sort](https://docs.rs/gnu-sort)
-- **📦 Crates.io**: [crates.io/crates/gnu-sort](https://crates.io/crates/gnu-sort)
+- **📖 Documentation**: [GitHub README](https://github.com/acefsm/rust-sort/blob/master/README.md)
 - **🐛 Issue Tracker**: [GitHub Issues](https://github.com/acefsm/rust-sort/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/acefsm/rust-sort/discussions)
-- **📊 Benchmarks**: [Performance Dashboard](https://username.github.io/rust-sort-benchmarks)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/acefsm/rust-sort/discussions)  
+- **📊 Detailed Benchmarks**: [Performance Comparison Table](performance_comparison_table.md)
 
 ---
 

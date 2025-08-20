@@ -19,6 +19,7 @@ pub mod external_sort;
 pub mod adaptive_sort;
 pub mod hash_sort;
 pub mod args;
+pub mod locale;
 
 // Re-export commonly used types
 pub use error::{SortError, SortResult};

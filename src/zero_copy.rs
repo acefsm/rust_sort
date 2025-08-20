@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 use std::cmp::Ordering;
 use crate::simd_compare::SIMDCompare;
+use crate::locale;
 
 /// Zero-copy line representation that points directly into memory-mapped data
 #[derive(Debug, Clone, Copy)]
@@ -264,22 +265,32 @@ impl Line {
         self.len == 0
     }
 
-    /// SIMD-accelerated case-insensitive comparison
+    /// Locale-aware case-insensitive comparison
     pub fn compare_ignore_case(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
         
-        // Use SIMD for performance boost
-        SIMDCompare::compare_case_insensitive_simd(a_bytes, b_bytes)
+        // Use locale-aware comparison if enabled
+        if locale::LocaleConfig::is_enabled() {
+            locale::smart_compare(a_bytes, b_bytes, true)
+        } else {
+            // Use SIMD for performance boost when locale is not enabled
+            SIMDCompare::compare_case_insensitive_simd(a_bytes, b_bytes)
+        }
     }
 
-    /// SIMD-accelerated lexicographic comparison
+    /// Locale-aware lexicographic comparison
     pub fn compare_lexicographic(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
         
-        // Use SIMD for maximum performance
-        SIMDCompare::compare_bytes_simd(a_bytes, b_bytes)
+        // Use locale-aware comparison if enabled
+        if locale::LocaleConfig::is_enabled() {
+            locale::smart_compare(a_bytes, b_bytes, false)
+        } else {
+            // Use SIMD for maximum performance when locale is not enabled
+            SIMDCompare::compare_bytes_simd(a_bytes, b_bytes)
+        }
     }
 }
 
@@ -553,21 +564,27 @@ fn skip_leading_zeros(bytes: &[u8]) -> &[u8] {
     }
 }
 
-/// Fast case-insensitive comparison
+/// Fast case-insensitive comparison with locale support
 pub fn compare_case_insensitive(a: &[u8], b: &[u8]) -> Ordering {
-    let min_len = a.len().min(b.len());
-    
-    for i in 0..min_len {
-        let a_char = a[i].to_ascii_lowercase();
-        let b_char = b[i].to_ascii_lowercase();
+    // Use locale-aware comparison if enabled
+    if locale::LocaleConfig::is_enabled() {
+        locale::smart_compare(a, b, true)
+    } else {
+        // Fast path for C/POSIX locale
+        let min_len = a.len().min(b.len());
         
-        match a_char.cmp(&b_char) {
-            Ordering::Equal => continue,
-            other => return other,
+        for i in 0..min_len {
+            let a_char = a[i].to_ascii_lowercase();
+            let b_char = b[i].to_ascii_lowercase();
+            
+            match a_char.cmp(&b_char) {
+                Ordering::Equal => continue,
+                other => return other,
+            }
         }
+        
+        a.len().cmp(&b.len())
     }
-    
-    a.len().cmp(&b.len())
 }
 
 #[cfg(test)]
