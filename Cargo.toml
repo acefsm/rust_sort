@@ -1,0 +1,25 @@
+[package]
+name = "gnu-sort"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sort"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+thiserror = "1.0"
+num_cpus = "1.8"
+crossbeam-channel = "0.5"
+tempfile = "3.8"
+memmap2 = "0.9"
+rayon = "1.7"
+rand = "0.8"
+parking_lot = "0.12"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
