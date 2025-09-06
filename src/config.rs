@@ -3,6 +3,179 @@
 use std::str::FromStr;
 use crate::error::{SortError, SortResult};
 
+/// Sort key specification for field-based sorting
+#[derive(Debug, Clone)]
+pub struct SortKey {
+    /// Starting field number (1-based)
+    pub start_field: usize,
+    /// Starting character position within field (1-based, optional)
+    pub start_char: Option<usize>,
+    /// Ending field number (1-based, optional)
+    pub end_field: Option<usize>,
+    /// Ending character position within field (1-based, optional)
+    pub end_char: Option<usize>,
+    /// Sort options specific to this key
+    pub options: SortKeyOptions,
+}
+
+/// Options specific to a sort key
+#[derive(Debug, Clone)]
+pub struct SortKeyOptions {
+    pub numeric: bool,
+    pub general_numeric: bool,
+    pub month: bool,
+    pub reverse: bool,
+    pub ignore_case: bool,
+    pub dictionary_order: bool,
+    pub ignore_leading_blanks: bool,
+    pub human_numeric: bool,
+    pub version: bool,
+    pub random: bool,
+}
+
+impl Default for SortKeyOptions {
+    fn default() -> Self {
+        Self {
+            numeric: false,
+            general_numeric: false,
+            month: false,
+            reverse: false,
+            ignore_case: false,
+            dictionary_order: false,
+            ignore_leading_blanks: false,
+            human_numeric: false,
+            version: false,
+            random: false,
+        }
+    }
+}
+
+impl SortKey {
+    /// Parse a sort key from a string like "2,4" or "1.3,1.5" or "2nr"
+    pub fn parse(keydef: &str) -> SortResult<Self> {
+        // Split by comma to get start and optional end
+        let parts: Vec<&str> = keydef.split(',').collect();
+        if parts.is_empty() || parts.len() > 2 {
+            return Err(SortError::parse_error(&format!("invalid key specification: {}", keydef)));
+        }
+        
+        // Parse start position and options
+        let (start_field, start_char, start_opts) = Self::parse_field_spec(parts[0])?;
+        
+        // Parse end position if present
+        let (end_field, end_char, end_opts) = if parts.len() == 2 {
+            let (field, char_pos, opts) = Self::parse_field_spec(parts[1])?;
+            (Some(field), char_pos, opts)
+        } else {
+            (None, None, SortKeyOptions::default())
+        };
+        
+        // Merge options (start options take precedence)
+        let mut options = start_opts;
+        // Apply end options only if they're set and start options aren't
+        if !options.numeric { options.numeric = end_opts.numeric; }
+        if !options.general_numeric { options.general_numeric = end_opts.general_numeric; }
+        if !options.month { options.month = end_opts.month; }
+        if !options.reverse { options.reverse = end_opts.reverse; }
+        if !options.ignore_case { options.ignore_case = end_opts.ignore_case; }
+        if !options.dictionary_order { options.dictionary_order = end_opts.dictionary_order; }
+        if !options.ignore_leading_blanks { options.ignore_leading_blanks = end_opts.ignore_leading_blanks; }
+        if !options.human_numeric { options.human_numeric = end_opts.human_numeric; }
+        if !options.version { options.version = end_opts.version; }
+        if !options.random { options.random = end_opts.random; }
+        
+        Ok(Self {
+            start_field,
+            start_char,
+            end_field,
+            end_char,
+            options,
+        })
+    }
+    
+    /// Parse a field specification like "2" or "2.3" or "2nr"
+    fn parse_field_spec(spec: &str) -> SortResult<(usize, Option<usize>, SortKeyOptions)> {
+        if spec.is_empty() {
+            return Err(SortError::parse_error("empty field specification"));
+        }
+        
+        let mut chars = spec.chars().peekable();
+        let mut field_str = String::new();
+        let mut char_str = String::new();
+        let mut options = SortKeyOptions::default();
+        
+        // Parse field number
+        while let Some(&ch) = chars.peek() {
+            if ch.is_ascii_digit() {
+                field_str.push(ch);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        
+        if field_str.is_empty() {
+            return Err(SortError::parse_error(&format!("invalid field specification: {}", spec)));
+        }
+        
+        let field = field_str.parse::<usize>()
+            .map_err(|_| SortError::parse_error(&format!("invalid field number: {}", field_str)))?;
+        
+        if field == 0 {
+            return Err(SortError::parse_error("field numbers start at 1"));
+        }
+        
+        // Check for character position (after a dot)
+        let char_pos = if chars.peek() == Some(&'.') {
+            chars.next(); // consume the dot
+            while let Some(&ch) = chars.peek() {
+                if ch.is_ascii_digit() {
+                    char_str.push(ch);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+            
+            if char_str.is_empty() {
+                None
+            } else {
+                let pos = char_str.parse::<usize>()
+                    .map_err(|_| SortError::parse_error(&format!("invalid character position: {}", char_str)))?;
+                if pos == 0 {
+                    return Err(SortError::parse_error("character positions start at 1"));
+                }
+                Some(pos)
+            }
+        } else {
+            None
+        };
+        
+        // Parse options (single letters after the field spec)
+        while let Some(ch) = chars.next() {
+            match ch {
+                'n' => options.numeric = true,
+                'g' => options.general_numeric = true,
+                'M' => options.month = true,
+                'r' => options.reverse = true,
+                'f' => options.ignore_case = true,
+                'd' => options.dictionary_order = true,
+                'b' => options.ignore_leading_blanks = true,
+                'h' => options.human_numeric = true,
+                'V' => options.version = true,
+                'R' => options.random = true,
+                'i' => {}, // ignore non-printing - not fully implemented
+                'z' => {}, // zero-terminated - handled globally
+                _ => {
+                    return Err(SortError::parse_error(&format!("invalid key option: {}", ch)));
+                }
+            }
+        }
+        
+        Ok((field, char_pos, options))
+    }
+}
+
 /// Main configuration structure for sort operations
 #[derive(Debug, Clone)]
 pub struct SortConfig {
@@ -31,7 +204,7 @@ pub struct SortConfig {
     /// Field separator character
     pub field_separator: Option<char>,
     /// Sort keys (field specifications)
-    // Keys removed - handled internally by Ultimate Sort
+    pub keys: Vec<SortKey>,
     /// Output file path
     pub output_file: Option<String>,
     /// Buffer size for I/O operations
@@ -89,7 +262,7 @@ impl Default for SortConfig {
             ignore_leading_blanks: false,
             ignore_nonprinting: false,
             field_separator: None,
-            // keys: Vec::new(), // Removed
+            keys: Vec::new(),
             output_file: None,
             buffer_size: None,
             parallel_threads: None,
@@ -155,7 +328,11 @@ impl SortConfig {
         self
     }
     
-    // Key methods removed - handled internally by Ultimate Sort
+    /// Add a sort key
+    pub fn add_key(mut self, key: SortKey) -> Self {
+        self.keys.push(key);
+        self
+    }
     
     /// Set output file
     pub fn with_output_file(mut self, output_file: Option<String>) -> Self {
@@ -214,8 +391,6 @@ impl SortConfig {
         if self.merge && self.unique {
             // This is actually allowed, but warn about performance implications
         }
-        
-        // Key validation removed - handled internally
         
         // Validate field separator
         if let Some(sep) = self.field_separator {
@@ -413,7 +588,11 @@ impl SortConfigBuilder {
         self
     }
     
-    // Key method removed - handled internally
+    /// Add a sort key
+    pub fn key(mut self, key: SortKey) -> Self {
+        self.config.keys.push(key);
+        self
+    }
     
     /// Set output file
     pub fn output_file(mut self, file: String) -> Self {

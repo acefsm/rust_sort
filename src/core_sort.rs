@@ -3,6 +3,7 @@ use std::io::{self, Write, BufWriter, Read};
 use std::path::{Path, PathBuf};
 use std::cmp::Ordering;
 use crate::args::SortArgs;
+use crate::config::SortConfig;
 use crate::zero_copy::{MappedFile, Line, ZeroCopyReader};
 use crate::radix_sort::RadixSort;
 use crate::external_sort::ExternalSort;
@@ -15,11 +16,12 @@ use std::thread;
 /// Core sort implementation using zero-copy architecture
 pub struct CoreSort {
     args: SortArgs,
+    config: SortConfig,
 }
 
 impl CoreSort {
-    pub fn new(args: SortArgs) -> Self {
-        Self { args }
+    pub fn new(args: SortArgs, config: SortConfig) -> Self {
+        Self { args, config }
     }
 
     pub fn sort(&self) -> io::Result<()> {
@@ -137,21 +139,8 @@ impl CoreSort {
     
     /// Check if two Lines are in order
     fn is_lines_in_order(&self, a: &Line, b: &Line) -> bool {
-        let cmp = if self.args.numeric_sort {
-            a.compare_numeric(b)
-        } else if self.args.general_numeric_sort {
-            a.compare_general_numeric(b)
-        } else if self.args.ignore_case {
-            a.compare_ignore_case(b)
-        } else {
-            a.compare_lexicographic(b)
-        };
-        
-        if self.args.reverse {
-            cmp != std::cmp::Ordering::Less
-        } else {
-            cmp != std::cmp::Ordering::Greater
-        }
+        let cmp = a.compare_with_keys(b, &self.config.keys, self.config.field_separator, &self.config);
+        cmp != std::cmp::Ordering::Greater
     }
 
     /// Sort data from stdin using streaming approach
@@ -302,11 +291,12 @@ impl CoreSort {
         for file_path in files {
             let file_path = file_path.clone();
             let args = self.args.clone();
+            let config = self.config.clone();
             let temp_dir_path = temp_dir.path().to_path_buf();
             let sender = sender.clone();
             
             thread::spawn(move || {
-                let result = Self::sort_file_to_temp(&file_path, &args, &temp_dir_path);
+                let result = Self::sort_file_to_temp(&file_path, &args, &config, &temp_dir_path);
                 let _ = sender.send(result);
             });
         }
@@ -323,7 +313,7 @@ impl CoreSort {
     }
 
     /// Sort a single file and write to temporary file
-    fn sort_file_to_temp(file_path: &str, args: &SortArgs, temp_dir: &Path) -> io::Result<PathBuf> {
+    fn sort_file_to_temp(file_path: &str, args: &SortArgs, config: &SortConfig, temp_dir: &Path) -> io::Result<PathBuf> {
         let path = Path::new(file_path);
         let mapped_file = MappedFile::new(path)?;
         let lines = mapped_file.lines();
@@ -333,8 +323,8 @@ impl CoreSort {
             .map(|(idx, line)| SortableLine { line: *line, original_index: idx })
             .collect();
 
-        // Create sorter with args
-        let sorter = CoreSort::new(args.clone());
+        // Create sorter with args and config
+        let sorter = CoreSort::new(args.clone(), config.clone());
         sorter.sort_lines(&mut sortable_lines);
 
         // Write to temporary file
@@ -644,27 +634,9 @@ impl CoreSort {
     fn parallel_sort_lines(&self, lines: &mut [SortableLine]) {
         use rayon::prelude::*;
         
-        if self.args.numeric_sort {
-            lines.par_sort_unstable_by(|a, b| {
-                let cmp = a.line.compare_numeric(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        } else if self.args.general_numeric_sort {
-            lines.par_sort_unstable_by(|a, b| {
-                let cmp = a.line.compare_general_numeric(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        } else if self.args.ignore_case {
-            lines.par_sort_unstable_by(|a, b| {
-                let cmp = a.line.compare_ignore_case(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        } else {
-            lines.par_sort_unstable_by(|a, b| {
-                let cmp = a.line.compare_lexicographic(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        }
+        lines.par_sort_unstable_by(|a, b| {
+            a.line.compare_with_keys(&b.line, &self.config.keys, self.config.field_separator, &self.config)
+        });
         
         // Post-process for stable sort if needed
         if self.args.stable {
@@ -674,37 +646,9 @@ impl CoreSort {
 
     /// Sequential sorting implementation (for small datasets)
     fn sequential_sort_lines(&self, lines: &mut [SortableLine]) {
-        if self.args.numeric_sort {
-            lines.sort_by(|a, b| {
-                let cmp = a.line.compare_numeric(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        } else if self.args.general_numeric_sort {
-            lines.sort_by(|a, b| {
-                let cmp = a.line.compare_general_numeric(&b.line);
-                if self.args.reverse { cmp.reverse() } else { cmp }
-            });
-        } else if self.args.ignore_case {
-            lines.sort_by(|a, b| {
-                // Use the optimized case-insensitive comparison from Line
-                let cmp = a.line.compare_ignore_case(&b.line);
-                if self.args.reverse {
-                    cmp.reverse()
-                } else {
-                    cmp
-                }
-            });
-        } else {
-            lines.sort_by(|a, b| {
-                // Use the optimized lexicographic comparison from Line
-                let cmp = a.line.compare_lexicographic(&b.line);
-                if self.args.reverse {
-                    cmp.reverse()
-                } else {
-                    cmp
-                }
-            });
-        }
+        lines.sort_by(|a, b| {
+            a.line.compare_with_keys(&b.line, &self.config.keys, self.config.field_separator, &self.config)
+        });
 
         // Handle stable sort requirement  
         if self.args.stable {
@@ -811,13 +755,7 @@ impl CoreSort {
         let mut gt = right;  // Elements > pivot
         
         while i < gt {
-            let cmp = if self.args.numeric_sort {
-                lines[i].line.compare_numeric(&pivot.line)
-            } else if self.args.ignore_case {
-                lines[i].line.compare_ignore_case(&pivot.line)
-            } else {
-                lines[i].line.compare_lexicographic(&pivot.line)
-            };
+            let cmp = lines[i].line.compare_with_keys(&pivot.line, &self.config.keys, self.config.field_separator, &self.config);
             
             match cmp {
                 Ordering::Less => {
@@ -842,29 +780,11 @@ impl CoreSort {
     
     /// Find median of three elements for pivot selection
     fn median_of_three(&self, lines: &[SortableLine], a: usize, b: usize, c: usize) -> usize {
-        let cmp_ab = if self.args.numeric_sort {
-            lines[a].line.compare_numeric(&lines[b].line)
-        } else if self.args.ignore_case {
-            lines[a].line.compare_ignore_case(&lines[b].line)
-        } else {
-            lines[a].line.compare_lexicographic(&lines[b].line)
-        };
+        let cmp_ab = lines[a].line.compare_with_keys(&lines[b].line, &self.config.keys, self.config.field_separator, &self.config);
         
-        let cmp_bc = if self.args.numeric_sort {
-            lines[b].line.compare_numeric(&lines[c].line)
-        } else if self.args.ignore_case {
-            lines[b].line.compare_ignore_case(&lines[c].line)
-        } else {
-            lines[b].line.compare_lexicographic(&lines[c].line)
-        };
+        let cmp_bc = lines[b].line.compare_with_keys(&lines[c].line, &self.config.keys, self.config.field_separator, &self.config);
         
-        let cmp_ac = if self.args.numeric_sort {
-            lines[a].line.compare_numeric(&lines[c].line)
-        } else if self.args.ignore_case {
-            lines[a].line.compare_ignore_case(&lines[c].line)
-        } else {
-            lines[a].line.compare_lexicographic(&lines[c].line)
-        };
+        let cmp_ac = lines[a].line.compare_with_keys(&lines[c].line, &self.config.keys, self.config.field_separator, &self.config);
         
         if cmp_ab != Ordering::Greater {
             if cmp_bc != Ordering::Greater {
@@ -892,13 +812,7 @@ impl CoreSort {
             let mut j = i;
             
             while j > 0 {
-                let cmp = if self.args.numeric_sort {
-                    lines[j - 1].line.compare_numeric(&key.line)
-                } else if self.args.ignore_case {
-                    lines[j - 1].line.compare_ignore_case(&key.line)
-                } else {
-                    lines[j - 1].line.compare_lexicographic(&key.line)
-                };
+                let cmp = lines[j - 1].line.compare_with_keys(&key.line, &self.config.keys, self.config.field_separator, &self.config);
                 
                 if cmp == Ordering::Greater {
                     lines[j] = lines[j - 1];
@@ -917,18 +831,10 @@ impl CoreSort {
         // Stable sort is already handled by using sort_by instead of sort_unstable_by
         // and falling back to original_index for equal elements
         lines.sort_by(|a, b| {
-            let primary_cmp = if self.args.numeric_sort {
-                a.line.compare_numeric(&b.line)
-            } else if self.args.ignore_case {
-                a.line.compare_ignore_case(&b.line)
-            } else {
-                a.line.compare_lexicographic(&b.line)
-            };
-            
-            let final_cmp = if self.args.reverse { primary_cmp.reverse() } else { primary_cmp };
+            let primary_cmp = a.line.compare_with_keys(&b.line, &self.config.keys, self.config.field_separator, &self.config);
             
             // Use original index as tie-breaker for stability
-            match final_cmp {
+            match primary_cmp {
                 std::cmp::Ordering::Equal => a.original_index.cmp(&b.original_index),
                 other => other,
             }

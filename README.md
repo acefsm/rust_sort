@@ -1,6 +1,6 @@
 # 🚀 rust-sort
 
-[![Build Status](https://github.com/acefsm/rust-sort/workflows/CI/badge.svg)](https://github.com/acefsm/rust-sort/actions)
+[![Build Status](https://github.com/acefsm/rust_sort/workflows/CI/badge.svg)](https://github.com/acefsm/rust_sort/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
@@ -103,8 +103,8 @@ For detailed performance analysis, see [performance_comparison_table.md](perform
 
 #### From source (currently the only option)
 ```bash
-git clone https://github.com/acefsm/rust-sort.git
-cd rust-sort
+git clone https://github.com/acefsm/rust_sort.git
+cd rust_sort
 cargo build --release
 sudo cp target/release/sort /usr/local/bin/rust-sort
 ```
@@ -112,7 +112,7 @@ sudo cp target/release/sort /usr/local/bin/rust-sort
 #### From GitHub releases (planned)
 ```bash
 # Coming soon - binary releases for major platforms
-# Will be available at: https://github.com/acefsm/rust-sort/releases
+# Will be available at: https://github.com/acefsm/rust_sort/releases
 ```
 
 ### Basic Usage
@@ -165,8 +165,8 @@ sort -s data.txt
 
 ### Building
 ```bash
-git clone https://github.com/acefsm/rust-sort.git
-cd rust-sort
+git clone https://github.com/acefsm/rust_sort.git
+cd rust_sort
 cargo build --release
 
 # The binary will be available at target/release/sort
@@ -301,8 +301,8 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 
 ### Quick Contribution Setup
 ```bash
-git clone https://github.com/acefsm/rust-sort.git
-cd rust-sort
+git clone https://github.com/acefsm/rust_sort.git
+cd rust_sort
 cargo test                    # Run tests
 cargo clippy                  # Run linter
 cargo fmt                     # Format code
@@ -334,9 +334,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🔗 Links
 
-- **📖 Documentation**: [GitHub README](https://github.com/acefsm/rust-sort/blob/master/README.md)
-- **🐛 Issue Tracker**: [GitHub Issues](https://github.com/acefsm/rust-sort/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/acefsm/rust-sort/discussions)  
+- **📖 Documentation**: [GitHub README](https://github.com/acefsm/rust_sort/blob/master/README.md)
+- **🐛 Issue Tracker**: [GitHub Issues](https://github.com/acefsm/rust_sort/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/acefsm/rust_sort/discussions)  
 - **📊 Detailed Benchmarks**: [Performance Comparison Table](performance_comparison_table.md)
 
 ---
@@ -345,6 +345,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ and ⚡ by the rust-sort team**
 
-[⭐ Star this repo](https://github.com/acefsm/rust-sort) • [🍴 Fork it](https://github.com/acefsm/rust-sort/fork) • [📢 Share it](https://twitter.com/intent/tweet?text=Check%20out%20rust-sort%20-%20a%2020-60x%20faster%20replacement%20for%20GNU%20sort!&url=https://github.com/acefsm/rust-sort)
+[⭐ Star this repo](https://github.com/acefsm/rust_sort) • [🍴 Fork it](https://github.com/acefsm/rust_sort/fork) • [📢 Share it](https://twitter.com/intent/tweet?text=Check%20out%20rust-sort%20-%20a%2020-60x%20faster%20replacement%20for%20GNU%20sort!&url=https://github.com/acefsm/rust_sort)
 
 </div>

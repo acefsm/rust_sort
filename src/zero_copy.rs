@@ -45,6 +45,140 @@ impl Line {
         }
     }
 
+    /// Extract a field from the line based on field separator
+    /// Fields are 1-indexed (field 1 is the first field)
+    pub fn extract_field(&self, field_num: usize, separator: Option<char>) -> Option<&[u8]> {
+        if field_num == 0 {
+            return None;
+        }
+        
+        let bytes = unsafe { self.as_bytes() };
+        
+        // If no separator specified, use whitespace
+        if separator.is_none() {
+            return self.extract_field_by_whitespace(bytes, field_num);
+        }
+        
+        let sep_byte = separator.unwrap() as u8;
+        let mut field_count = 1;
+        let mut field_start = 0;
+        
+        for (i, &byte) in bytes.iter().enumerate() {
+            if byte == sep_byte {
+                if field_count == field_num {
+                    return Some(&bytes[field_start..i]);
+                }
+                field_count += 1;
+                field_start = i + 1;
+            }
+        }
+        
+        // Check if we're looking for the last field
+        if field_count == field_num && field_start < bytes.len() {
+            return Some(&bytes[field_start..]);
+        }
+        
+        None
+    }
+    
+    /// Extract field by whitespace (default behavior when no separator is specified)
+    fn extract_field_by_whitespace<'a>(&self, bytes: &'a [u8], field_num: usize) -> Option<&'a [u8]> {
+        let mut field_count = 0;
+        let mut in_field = false;
+        
+        for (i, &byte) in bytes.iter().enumerate() {
+            let is_whitespace = byte == b' ' || byte == b'\t';
+            
+            if !is_whitespace && !in_field {
+                // Starting a new field
+                field_count += 1;
+                in_field = true;
+                
+                if field_count == field_num {
+                    // Found the start of our target field
+                    // Now find where it ends
+                    for (j, &b) in bytes[i..].iter().enumerate() {
+                        if b == b' ' || b == b'\t' {
+                            return Some(&bytes[i..i+j]);
+                        }
+                    }
+                    // Field goes to end of line
+                    return Some(&bytes[i..]);
+                }
+            } else if is_whitespace && in_field {
+                // Ending a field
+                in_field = false;
+            }
+        }
+        
+        None
+    }
+    
+    /// Extract a key region from the line based on SortKey specification
+    pub fn extract_key(&self, key: &crate::config::SortKey, separator: Option<char>) -> Option<&[u8]> {
+        // Extract the starting field
+        let start_field_data = self.extract_field(key.start_field, separator)?;
+        
+        // If no end field specified, use just the start field
+        if key.end_field.is_none() {
+            // Apply character positions if specified
+            if let Some(start_char) = key.start_char {
+                if start_char > 0 && start_char <= start_field_data.len() {
+                    return Some(&start_field_data[start_char - 1..]);
+                }
+            }
+            return Some(start_field_data);
+        }
+        
+        // Complex case: range of fields
+        // For now, just extract from start field to end field
+        // This is a simplified implementation
+        let bytes = unsafe { self.as_bytes() };
+        
+        // Find start position
+        let start_pos = if let Some(field_data) = self.extract_field(key.start_field, separator) {
+            let offset = field_data.as_ptr() as usize - bytes.as_ptr() as usize;
+            if let Some(start_char) = key.start_char {
+                if start_char > 0 && start_char <= field_data.len() {
+                    offset + start_char - 1
+                } else {
+                    offset
+                }
+            } else {
+                offset
+            }
+        } else {
+            return None;
+        };
+        
+        // Find end position
+        let end_pos = if let Some(end_field) = key.end_field {
+            if let Some(field_data) = self.extract_field(end_field, separator) {
+                let offset = field_data.as_ptr() as usize - bytes.as_ptr() as usize;
+                let field_end = offset + field_data.len();
+                if let Some(end_char) = key.end_char {
+                    if end_char > 0 && end_char <= field_data.len() {
+                        offset + end_char
+                    } else {
+                        field_end
+                    }
+                } else {
+                    field_end
+                }
+            } else {
+                bytes.len()
+            }
+        } else {
+            bytes.len()
+        };
+        
+        if start_pos < end_pos && start_pos < bytes.len() {
+            Some(&bytes[start_pos..end_pos.min(bytes.len())])
+        } else {
+            None
+        }
+    }
+    
     /// Fast numeric parsing for simple integers (optimized path)
     pub fn parse_int(&self) -> Option<i64> {
         // SAFETY: as_bytes() is safe here because Line was created from valid memory
@@ -130,6 +264,92 @@ impl Line {
         }
     }
 
+    /// Compare lines using field-based sorting with multiple keys
+    pub fn compare_with_keys(&self, other: &Line, keys: &[crate::config::SortKey], separator: Option<char>, config: &crate::config::SortConfig) -> Ordering {
+        if keys.is_empty() {
+            // No keys specified, compare entire lines based on global options
+            return self.compare_with_config(other, config);
+        }
+        
+        // Compare using each key in order
+        for key in keys {
+            let self_field = self.extract_key(key, separator);
+            let other_field = other.extract_key(key, separator);
+            
+            let cmp = match (self_field, other_field) {
+                (Some(a), Some(b)) => {
+                    // Create temporary Line structs for the extracted fields
+                    let a_line = Line::new(a);
+                    let b_line = Line::new(b);
+                    
+                    // Compare based on key options
+                    let result = if key.options.general_numeric {
+                        a_line.compare_general_numeric(&b_line)
+                    } else if key.options.numeric {
+                        a_line.compare_numeric(&b_line)
+                    } else if key.options.month {
+                        // Month comparison not fully implemented
+                        a_line.compare_lexicographic(&b_line)
+                    } else if key.options.version {
+                        // Version comparison not fully implemented
+                        a_line.compare_lexicographic(&b_line)
+                    } else if key.options.human_numeric {
+                        // Human numeric not fully implemented
+                        a_line.compare_lexicographic(&b_line)
+                    } else if key.options.ignore_case {
+                        a_line.compare_ignore_case(&b_line)
+                    } else {
+                        a_line.compare_lexicographic(&b_line)
+                    };
+                    
+                    // Apply reverse if specified for this key
+                    if key.options.reverse {
+                        result.reverse()
+                    } else {
+                        result
+                    }
+                }
+                (None, Some(_)) => Ordering::Less,
+                (Some(_), None) => Ordering::Greater,
+                (None, None) => Ordering::Equal,
+            };
+            
+            if cmp != Ordering::Equal {
+                return cmp;
+            }
+        }
+        
+        // All keys compared equal, use stable sort order (original line order)
+        if config.stable {
+            Ordering::Equal
+        } else {
+            // Use entire line as tie-breaker
+            self.compare_lexicographic(other)
+        }
+    }
+    
+    /// Compare lines based on global configuration (when no keys are specified)
+    pub fn compare_with_config(&self, other: &Line, config: &crate::config::SortConfig) -> Ordering {
+        let cmp = match config.mode {
+            crate::config::SortMode::GeneralNumeric => self.compare_general_numeric(other),
+            crate::config::SortMode::Numeric => self.compare_numeric(other),
+            crate::config::SortMode::Lexicographic => {
+                if config.ignore_case {
+                    self.compare_ignore_case(other)
+                } else {
+                    self.compare_lexicographic(other)
+                }
+            }
+            _ => self.compare_lexicographic(other), // Default for unimplemented modes
+        };
+        
+        if config.reverse {
+            cmp.reverse()
+        } else {
+            cmp
+        }
+    }
+    
     /// Fast comparison for numeric values (GNU sort style - no string conversion)
     pub fn compare_numeric(&self, other: &Line) -> Ordering {
         // Try fast path for simple integers

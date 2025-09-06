@@ -355,7 +355,14 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
         config.temp_dir = Some(temp_dir.clone());
     }
     
-    // Simplified: Ultimate Sort handles sorting internally without explicit key parsing
+    // Parse sort keys from -k options
+    if let Some(key_defs) = matches.get_many::<String>("key") {
+        use gnu_sort::config::SortKey;
+        for keydef in key_defs {
+            let key = SortKey::parse(keydef)?;
+            config.keys.push(key);
+        }
+    }
     
     // Handle files0-from option
     if let Some(files0_file) = matches.get_one::<String>("files0-from") {

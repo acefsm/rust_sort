@@ -49,7 +49,7 @@ pub fn sort(config: &SortConfig, input_files: &[String]) -> SortResult<i32> {
         merge: config.merge,
     };
     
-    let core_sort = crate::core_sort::CoreSort::new(args);
+    let core_sort = crate::core_sort::CoreSort::new(args, config.clone());
     core_sort.sort().map_err(|e| SortError::internal(&e.to_string()))?;
     Ok(EXIT_SUCCESS)
 }
