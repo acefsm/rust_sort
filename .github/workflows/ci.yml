@@ -279,7 +279,9 @@ jobs:
   build-matrix:
     name: Build Release Binaries
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    # Builds binaries on every commit to main/master and on version tags
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
     strategy:
       matrix:
         include:
@@ -338,8 +340,9 @@ jobs:
     - name: Upload release artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: release-${{ matrix.name }}
+        name: release-${{ matrix.name }}-${{ github.sha }}
         path: dist/rust-sort-${{ matrix.name }}.tar.gz
+        retention-days: 7
 
   publish:
     name: Publish to crates.io
