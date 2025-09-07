@@ -635,8 +635,6 @@ impl CoreSort {
         sorted_simple_lines: &[Line],
     ) {
         // Create a mapping from sorted lines back to original indices
-        use std::collections::HashMap;
-
         // Group original indices by line content
         let mut line_to_indices: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
         for (idx, sortable_line) in sortable_lines.iter().enumerate() {
