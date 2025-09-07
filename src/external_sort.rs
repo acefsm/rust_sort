@@ -75,20 +75,16 @@ impl ExternalSort {
         if numeric && self.use_radix {
             let radix_sorter = RadixSort::new(self.parallel);
             radix_sorter.sort_numeric_lines(&mut simple_lines);
-        } else {
-            if self.parallel && simple_lines.len() > 10000 {
-                if numeric {
-                    simple_lines.par_sort_unstable_by(|a, b| a.compare_numeric(b));
-                } else {
-                    simple_lines.par_sort_unstable_by(|a, b| a.compare_lexicographic(b));
-                }
+        } else if self.parallel && simple_lines.len() > 10000 {
+            if numeric {
+                simple_lines.par_sort_unstable_by(|a, b| a.compare_numeric(b));
             } else {
-                if numeric {
-                    simple_lines.sort_unstable_by(|a, b| a.compare_numeric(b));
-                } else {
-                    simple_lines.sort_unstable_by(|a, b| a.compare_lexicographic(b));
-                }
+                simple_lines.par_sort_unstable_by(|a, b| a.compare_lexicographic(b));
             }
+        } else if numeric {
+            simple_lines.sort_unstable_by(|a, b| a.compare_numeric(b));
+        } else {
+            simple_lines.sort_unstable_by(|a, b| a.compare_lexicographic(b));
         }
 
         // Write sorted output
@@ -338,11 +334,11 @@ impl ExternalSort {
         let chunk_path = self
             .temp_dir
             .path()
-            .join(format!("chunk_{:06}.txt", chunk_number));
+            .join(format!("chunk_{chunk_number:06}.txt"));
         let mut writer = BufWriter::new(File::create(&chunk_path)?);
 
         for line in lines {
-            writeln!(writer, "{}", line)?;
+            writeln!(writer, "{line}")?;
         }
         writer.flush()?;
 

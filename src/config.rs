@@ -40,8 +40,7 @@ impl SortKey {
         let parts: Vec<&str> = keydef.split(',').collect();
         if parts.is_empty() || parts.len() > 2 {
             return Err(SortError::parse_error(&format!(
-                "invalid key specification: {}",
-                keydef
+                "invalid key specification: {keydef}"
             )));
         }
 
@@ -122,14 +121,13 @@ impl SortKey {
 
         if field_str.is_empty() {
             return Err(SortError::parse_error(&format!(
-                "invalid field specification: {}",
-                spec
+                "invalid field specification: {spec}"
             )));
         }
 
         let field = field_str
             .parse::<usize>()
-            .map_err(|_| SortError::parse_error(&format!("invalid field number: {}", field_str)))?;
+            .map_err(|_| SortError::parse_error(&format!("invalid field number: {field_str}")))?;
 
         if field == 0 {
             return Err(SortError::parse_error("field numbers start at 1"));
@@ -151,7 +149,7 @@ impl SortKey {
                 None
             } else {
                 let pos = char_str.parse::<usize>().map_err(|_| {
-                    SortError::parse_error(&format!("invalid character position: {}", char_str))
+                    SortError::parse_error(&format!("invalid character position: {char_str}"))
                 })?;
                 if pos == 0 {
                     return Err(SortError::parse_error("character positions start at 1"));
@@ -178,10 +176,7 @@ impl SortKey {
                 'i' => {} // ignore non-printing - not fully implemented
                 'z' => {} // zero-terminated - handled globally
                 _ => {
-                    return Err(SortError::parse_error(&format!(
-                        "invalid key option: {}",
-                        ch
-                    )));
+                    return Err(SortError::parse_error(&format!("invalid key option: {ch}")));
                 }
             }
         }
@@ -530,7 +525,7 @@ impl FromStr for SortMode {
             "month" | "m" => Ok(SortMode::Month),
             "version" | "v" => Ok(SortMode::Version),
             "random" | "r" => Ok(SortMode::Random),
-            _ => Err(SortError::parse_error(&format!("unknown sort mode: {}", s))),
+            _ => Err(SortError::parse_error(&format!("unknown sort mode: {s}"))),
         }
     }
 }
@@ -546,7 +541,7 @@ impl std::fmt::Display for SortMode {
             SortMode::Version => "version",
             SortMode::Random => "random",
         };
-        write!(f, "{}", name)
+        write!(f, "{name}")
     }
 }
 
@@ -740,9 +735,11 @@ mod tests {
 
     #[test]
     fn test_validate_conflicting_options() {
-        let mut config = SortConfig::default();
-        config.check = true;
-        config.merge = true;
+        let config = SortConfig {
+            check: true,
+            merge: true,
+            ..Default::default()
+        };
 
         assert!(config.validate().is_err());
     }

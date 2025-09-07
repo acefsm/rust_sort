@@ -184,7 +184,7 @@ impl<T> SortContext<T> for SortResult<T> {
                 io::ErrorKind::NotFound => SortError::file_not_found(filename),
                 _ => SortError::Io(io::Error::new(
                     io_err.kind(),
-                    format!("{}: {}", filename, io_err),
+                    format!("{filename}: {io_err}"),
                 )),
             },
             other => other,
@@ -198,10 +198,7 @@ impl<T> SortContext<T> for Result<T, io::Error> {
         F: FnOnce() -> String,
     {
         self.map_err(|io_err| {
-            SortError::Io(io::Error::new(
-                io_err.kind(),
-                format!("{}: {}", f(), io_err),
-            ))
+            SortError::Io(io::Error::new(io_err.kind(), format!("{}: {io_err}", f())))
         })
     }
 
@@ -211,7 +208,7 @@ impl<T> SortContext<T> for Result<T, io::Error> {
             io::ErrorKind::NotFound => SortError::file_not_found(filename),
             _ => SortError::Io(io::Error::new(
                 io_err.kind(),
-                format!("{}: {}", filename, io_err),
+                format!("{filename}: {io_err}"),
             )),
         })
     }

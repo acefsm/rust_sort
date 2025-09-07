@@ -202,9 +202,10 @@ mod tests {
 
     #[test]
     fn test_ultra_random_sort() {
-        let mut data = vec!["apple", "banana", "apple", "cherry", "banana"];
+        let data = ["apple", "banana", "apple", "cherry", "banana"];
         // UltraRandomSort not implemented - using hash grouping instead
-        let mut groups = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<&str, Vec<usize>> =
+            std::collections::HashMap::new();
         for (i, item) in data.iter().enumerate() {
             groups.entry(*item).or_default().push(i);
         }
@@ -218,8 +219,8 @@ mod tests {
                 j += 1;
             }
             // All identical items should be consecutive
-            for k in i..j {
-                assert_eq!(data[k], current);
+            for item in &data[i..j] {
+                assert_eq!(*item, current);
             }
             i = j;
         }
@@ -235,13 +236,14 @@ mod tests {
 
         let start = std::time::Instant::now();
         // UltraRandomSort not implemented - using hash grouping for testing
-        let mut groups = std::collections::HashMap::new();
+        let mut groups: std::collections::HashMap<&[u8], Vec<usize>> =
+            std::collections::HashMap::new();
         for (i, item) in data.iter().enumerate() {
             groups.entry(item.as_bytes()).or_default().push(i);
         }
         let duration = start.elapsed();
 
-        println!("Ultra random sort took: {:?}", duration);
+        println!("Ultra random sort took: {duration:?}");
         assert!(duration.as_millis() < 100); // Should be very fast
     }
 }

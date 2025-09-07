@@ -328,7 +328,7 @@ mod tests {
         let str_b = b"hello world this is a different test";
 
         let result = SIMDCompare::compare_bytes_simd(str_a, str_b);
-        let expected = str_a.cmp(str_b);
+        let expected = str_a[..].cmp(&str_b[..]);
 
         assert_eq!(result, expected);
     }

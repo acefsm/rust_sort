@@ -19,7 +19,7 @@ fn main() {
     match result {
         Ok(exit_code) => process::exit(exit_code),
         Err(e) => {
-            eprintln!("sort: {}", e);
+            eprintln!("sort: {e}");
             process::exit(e.exit_code());
         }
     }
@@ -39,7 +39,7 @@ fn run() -> SortResult<i32> {
     let input_files: Vec<String> = matches
         .get_many::<String>("files")
         .unwrap_or_default()
-        .map(|s| s.clone())
+        .cloned()
         .collect();
 
     // Execute the sort operation
@@ -240,14 +240,14 @@ fn convert_legacy_syntax(args: &[String]) -> Vec<String> {
                 if i + 1 < args.len() && args[i + 1].starts_with('-') && args[i + 1].len() > 1 {
                     if let Ok(end_field) = args[i + 1][1..].parse::<usize>() {
                         // Convert +N -M to -k (N+1),(M)
-                        converted.push(format!("-k"));
+                        converted.push("-k".to_string());
                         converted.push(format!("{},{}", start_field + 1, end_field));
                         i += 2; // Skip both +N and -M
                         continue;
                     }
                 }
                 // Just +N without -M, convert to -k (N+1)
-                converted.push(format!("-k"));
+                converted.push("-k".to_string());
                 converted.push(format!("{}", start_field + 1));
                 i += 1;
                 continue;
@@ -289,8 +289,7 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
             "version" => SortMode::Version,
             _ => {
                 return Err(SortError::parse_error(&format!(
-                    "unknown sort type: {}",
-                    sort_word
+                    "unknown sort type: {sort_word}"
                 )))
             }
         }
@@ -351,7 +350,7 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
     // Set parallel threads
     if let Some(parallel_str) = matches.get_one::<String>("parallel") {
         let threads: usize = parallel_str.parse().map_err(|_| {
-            SortError::parse_error(&format!("invalid thread count: {}", parallel_str))
+            SortError::parse_error(&format!("invalid thread count: {parallel_str}"))
         })?;
         config.parallel_threads = Some(threads);
     }
@@ -403,13 +402,13 @@ fn read_files_from_null_separated_file(filename: &str) -> SortResult<Vec<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::SortMode;
+    use gnu_sort::config::SortMode;
 
     #[test]
     fn test_parse_basic_config() {
         let app = build_cli();
         let matches = app
-            .try_get_matches_from(&["sort", "-n", "-r"])
+            .try_get_matches_from(["sort", "-n", "-r"])
             .expect("Failed to parse test arguments");
 
         let config = parse_config_from_matches(&matches).expect("Failed to parse test config");
@@ -422,7 +421,7 @@ mod tests {
     fn test_parse_complex_config() {
         let app = build_cli();
         let matches = app
-            .try_get_matches_from(&[
+            .try_get_matches_from([
                 "sort",
                 "-k",
                 "2,4",
@@ -447,7 +446,7 @@ mod tests {
     fn test_conflicting_options() {
         let app = build_cli();
         let matches = app
-            .try_get_matches_from(&["sort", "-c", "-m"])
+            .try_get_matches_from(["sort", "-c", "-m"])
             .expect("Failed to parse test arguments");
 
         let result = parse_config_from_matches(&matches);

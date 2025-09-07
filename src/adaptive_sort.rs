@@ -17,6 +17,12 @@ pub struct AdaptiveSort {
     enable_compression: bool,
 }
 
+impl Default for AdaptiveSort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AdaptiveSort {
     pub fn new() -> Self {
         Self {
@@ -92,7 +98,7 @@ impl AdaptiveSort {
             return DataPattern::Random;
         }
 
-        let sample_size = (data.len() / 100).min(1000).max(10);
+        let sample_size = (data.len() / 100).clamp(10, 1000);
         let mut ascending = 0;
         let mut descending = 0;
         let mut equal = 0;

@@ -73,7 +73,7 @@ impl CoreSort {
                 Ok(()) => {}
                 Err(line_num) => {
                     // File is not sorted - return error with correct line number
-                    eprintln!("sort: {}:{}: disorder", file, line_num);
+                    eprintln!("sort: {file}:{line_num}: disorder");
                     std::process::exit(1);
                 }
             }
@@ -97,7 +97,7 @@ impl CoreSort {
 
             if let Some(ref prev) = prev_line {
                 if !self.is_in_order(prev, &line) {
-                    eprintln!("sort: -:{}: disorder", line_num);
+                    eprintln!("sort: -:{line_num}: disorder");
                     std::process::exit(1);
                 }
             }
@@ -232,9 +232,9 @@ impl CoreSort {
         let available_memory = Self::get_available_memory_mb();
         let memory_limit = if file_size > 200 * 1024 * 1024 {
             // Files > 200MB
-            (available_memory / 4).min(256).max(128) // Use 25% RAM, max 256MB
+            (available_memory / 4).clamp(128, 256) // Use 25% RAM, max 256MB
         } else {
-            (available_memory / 3).min(384).max(64) // Use 33% RAM, max 384MB
+            (available_memory / 3).clamp(64, 384) // Use 33% RAM, max 384MB
         };
 
         // Create external sorter
@@ -733,7 +733,7 @@ impl CoreSort {
         }
 
         // Sample to estimate duplication rate
-        let sample_size = (lines.len() / 10).min(1000).max(100);
+        let sample_size = (lines.len() / 10).clamp(100, 1000);
         let mut unique_count = 0;
         let mut seen = HashMap::new();
 
@@ -860,14 +860,12 @@ impl CoreSort {
             } else {
                 a
             }
+        } else if cmp_bc == Ordering::Greater {
+            b
+        } else if cmp_ac != Ordering::Greater {
+            a
         } else {
-            if cmp_bc == Ordering::Greater {
-                b
-            } else if cmp_ac != Ordering::Greater {
-                a
-            } else {
-                c
-            }
+            c
         }
     }
 
