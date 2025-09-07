@@ -182,19 +182,39 @@ mod tests {
 
     #[test]
     fn test_c_locale() {
+        // Save original env var
+        let original = env::var("LC_COLLATE").ok();
+        
         env::set_var("LC_COLLATE", "C");
         let config = LocaleConfig::init();
         assert!(!config.enabled);
         assert_eq!(config.locale_name, "C");
+        
+        // Restore original
+        if let Some(val) = original {
+            env::set_var("LC_COLLATE", val);
+        } else {
+            env::remove_var("LC_COLLATE");
+        }
     }
 
     #[test]
     fn test_utf8_locale() {
+        // Save original env var
+        let original = env::var("LC_COLLATE").ok();
+        
         env::set_var("LC_COLLATE", "en_US.UTF-8");
         let config = LocaleConfig::init();
         assert!(config.enabled);
         assert!(config.is_utf8);
         assert_eq!(config.locale_name, "en_US.UTF-8");
+        
+        // Restore original
+        if let Some(val) = original {
+            env::set_var("LC_COLLATE", val);
+        } else {
+            env::remove_var("LC_COLLATE");
+        }
     }
 
     #[test]

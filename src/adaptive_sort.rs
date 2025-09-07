@@ -452,16 +452,32 @@ mod tests {
 
     #[test]
     fn test_pattern_detection() {
-        let sorted = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+        // Need at least 100 elements for pattern detection
+        let sorted: Vec<i32> = (1..=100).collect();
         assert!(matches!(
             AdaptiveSort::detect_patterns(&sorted),
             DataPattern::MostlySorted
         ));
 
-        let reversed = vec![10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+        let reversed: Vec<i32> = (1..=100).rev().collect();
         assert!(matches!(
             AdaptiveSort::detect_patterns(&reversed),
             DataPattern::MostlyReversed
+        ));
+
+        // Test with many duplicates
+        let mut duplicates = vec![1; 50];
+        duplicates.extend(vec![2; 50]);
+        assert!(matches!(
+            AdaptiveSort::detect_patterns(&duplicates),
+            DataPattern::ManyDuplicates
+        ));
+
+        // Test that small arrays return Random
+        let small = vec![1, 2, 3, 4, 5];
+        assert!(matches!(
+            AdaptiveSort::detect_patterns(&small),
+            DataPattern::Random
         ));
     }
 }

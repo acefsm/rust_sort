@@ -58,7 +58,7 @@ impl RadixSort {
         }
 
         const CHUNK_SIZE: usize = 2_000_000; // Process in 2M line chunks (меньше chunks = меньше merge overhead)
-        let num_chunks = lines.len().div_ceil(CHUNK_SIZE);
+        let num_chunks = (lines.len() + CHUNK_SIZE - 1) / CHUNK_SIZE;
 
         // Sort chunks in parallel
         lines.par_chunks_mut(CHUNK_SIZE).for_each(|chunk| {
@@ -105,7 +105,7 @@ impl RadixSort {
 
             // Handle odd chunk if exists
             current_chunk_size *= 2;
-            remaining_chunks = remaining_chunks.div_ceil(2);
+            remaining_chunks = (remaining_chunks + 1) / 2;
         }
     }
 
@@ -321,7 +321,7 @@ impl RadixSort {
         } else {
             64 - max_val.leading_zeros() as usize
         };
-        let passes = max_bits.div_ceil(8); // 8 bits per pass
+        let passes = (max_bits + 7) / 8; // 8 bits per pass
 
         for pass in 0..passes {
             let shift = pass * 8;
