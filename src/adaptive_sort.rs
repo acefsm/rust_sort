@@ -39,6 +39,7 @@ impl AdaptiveSort {
     ///  SIMD-accelerated string comparison (up to 8x faster)
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx2")]
+    #[allow(dead_code)]
     unsafe fn simd_compare_strings(a: &[u8], b: &[u8]) -> Ordering {
         let min_len = a.len().min(b.len());
         let mut i = 0;
@@ -386,6 +387,9 @@ pub fn branchless_compare(a: i32, b: i32) -> i32 {
 }
 
 ///  SIMD-accelerated minimum/maximum finding
+///
+/// # Safety
+/// This function requires AVX2 CPU support and must be called with valid data.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "avx2")]
 pub unsafe fn simd_find_min_max(data: &[i32]) -> (i32, i32) {

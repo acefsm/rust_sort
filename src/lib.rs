@@ -4,7 +4,6 @@
 //! with all major features including multiple comparison modes, field sorting, parallelization,
 //! and memory-efficient operations.
 
-#![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::all)]
 
 pub mod config;

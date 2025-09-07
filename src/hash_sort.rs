@@ -141,6 +141,9 @@ pub mod simd_hash {
     use std::arch::x86_64::*;
 
     /// xxHash3-inspired SIMD hash
+    ///
+    /// # Safety
+    /// This function requires AVX2 CPU support and must be called with valid data.
     #[target_feature(enable = "avx2")]
     pub unsafe fn simd_hash_avx2(data: &[u8]) -> u64 {
         let mut hash = 0u64;
@@ -150,7 +153,7 @@ pub mod simd_hash {
         while i + 32 <= data.len() {
             let chunk = _mm256_loadu_si256(data.as_ptr().add(i) as *const __m256i);
             // Simplified hash mixing (real xxHash3 is more complex)
-            let mixed = _mm256_xor_si256(chunk, _mm256_set1_epi64x(0x9E3779B97F4A7C15));
+            let mixed = _mm256_xor_si256(chunk, _mm256_set1_epi64x(0x9E3779B97F4A7C15u64 as i64));
             let vals: [u64; 4] = std::mem::transmute(mixed);
             hash ^= vals[0].wrapping_mul(vals[1]) ^ vals[2].wrapping_mul(vals[3]);
             i += 32;
@@ -158,13 +161,13 @@ pub mod simd_hash {
 
         // Handle remaining bytes
         while i < data.len() {
-            hash = hash.wrapping_mul(0x9E3779B97F4A7C15) ^ (data[i] as u64);
+            hash = hash.wrapping_mul(0x9E3779B97F4A7C15u64) ^ (data[i] as u64);
             i += 1;
         }
 
         // Final mixing
         hash ^= hash >> 33;
-        hash = hash.wrapping_mul(0xC2B2AE3D27D4EB4F);
+        hash = hash.wrapping_mul(0xC2B2AE3D27D4EB4Fu64);
         hash ^= hash >> 29;
         hash
     }
