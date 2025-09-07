@@ -33,15 +33,11 @@ impl HashSort {
         for (idx, line) in lines.iter().enumerate() {
             let key = get_key(line);
             let hash = Self::fast_hash(key);
-            hash_to_indices
-                .entry(hash)
-                .or_default()
-                .push(idx);
+            hash_to_indices.entry(hash).or_default().push(idx);
         }
 
         // Convert to vec of groups
-        hash_to_indices.into_values()
-            .collect()
+        hash_to_indices.into_values().collect()
     }
 
     /// Ultra-fast hash function optimized for speed
@@ -117,14 +113,10 @@ impl HashSort {
         // Group by hash (sequential for now, could be optimized)
         let mut hash_to_indices: HashMap<u64, Vec<usize>> = HashMap::new();
         for (idx, hash) in hashes {
-            hash_to_indices
-                .entry(hash)
-                .or_default()
-                .push(idx);
+            hash_to_indices.entry(hash).or_default().push(idx);
         }
 
-        hash_to_indices.into_values()
-            .collect()
+        hash_to_indices.into_values().collect()
     }
 
     /// BREAKTHROUGH: Streaming random sort for gigantic files

@@ -642,10 +642,7 @@ impl CoreSort {
         for (idx, sortable_line) in sortable_lines.iter().enumerate() {
             unsafe {
                 let bytes = sortable_line.line.as_bytes().to_vec();
-                line_to_indices
-                    .entry(bytes)
-                    .or_default()
-                    .push(idx);
+                line_to_indices.entry(bytes).or_default().push(idx);
             }
         }
 
@@ -1016,7 +1013,8 @@ mod tests {
         };
 
         // Sort
-        let config = crate::config::SortConfig::default().with_mode(crate::config::SortMode::Numeric);
+        let config =
+            crate::config::SortConfig::default().with_mode(crate::config::SortMode::Numeric);
         let sorter = CoreSort::new(args, config);
         sorter.sort()?;
 
