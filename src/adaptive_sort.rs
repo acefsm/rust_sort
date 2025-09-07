@@ -37,10 +37,10 @@ impl AdaptiveSort {
         while i + 32 <= min_len {
             let va = _mm256_loadu_si256(a.as_ptr().add(i) as *const __m256i);
             let vb = _mm256_loadu_si256(b.as_ptr().add(i) as *const __m256i);
-            
+
             let eq = _mm256_cmpeq_epi8(va, vb);
             let mask = _mm256_movemask_epi8(eq);
-            
+
             if mask != -1 {
                 // Found difference
                 for j in 0..32 {
@@ -56,10 +56,10 @@ impl AdaptiveSort {
         while i + 16 <= min_len {
             let va = _mm_loadu_si128(a.as_ptr().add(i) as *const __m128i);
             let vb = _mm_loadu_si128(b.as_ptr().add(i) as *const __m128i);
-            
+
             let eq = _mm_cmpeq_epi8(va, vb);
             let mask = _mm_movemask_epi8(eq);
-            
+
             if mask != 0xFFFF {
                 // Found difference
                 for j in 0..16 {
@@ -176,7 +176,7 @@ impl AdaptiveSort {
         }
 
         let mut counts = vec![0; range];
-        
+
         // Count occurrences
         for &value in data.iter() {
             counts[(value - min) as usize] += 1;
@@ -260,14 +260,17 @@ impl AdaptiveSort {
     }
 
     ///  Parallel I/O reading with multiple threads
-    pub fn parallel_read_file(path: &std::path::Path, num_threads: usize) -> std::io::Result<Vec<Vec<u8>>> {
+    pub fn parallel_read_file(
+        path: &std::path::Path,
+        num_threads: usize,
+    ) -> std::io::Result<Vec<Vec<u8>>> {
         use std::fs::File;
         use std::io::{Read, Seek, SeekFrom};
         use std::thread;
 
         let file_size = std::fs::metadata(path)?.len() as usize;
         let chunk_size = file_size / num_threads;
-        
+
         let mut handles = vec![];
         let path = path.to_path_buf();
 
@@ -283,7 +286,7 @@ impl AdaptiveSort {
             let handle = thread::spawn(move || -> std::io::Result<Vec<u8>> {
                 let mut file = File::open(path)?;
                 file.seek(SeekFrom::Start(start as u64))?;
-                
+
                 let mut buffer = vec![0u8; end - start];
                 file.read_exact(&mut buffer)?;
                 Ok(buffer)
@@ -294,7 +297,11 @@ impl AdaptiveSort {
 
         let mut results = Vec::new();
         for handle in handles {
-            results.push(handle.join().expect("Thread panicked during parallel sorting")?);
+            results.push(
+                handle
+                    .join()
+                    .expect("Thread panicked during parallel sorting")?,
+            );
         }
 
         Ok(results)
@@ -303,10 +310,10 @@ impl AdaptiveSort {
     ///  Three-way partitioning for datasets with many duplicates
     pub fn three_way_partition<T: Ord + Clone>(data: &mut [T], pivot_idx: usize) -> (usize, usize) {
         data.swap(0, pivot_idx);
-        let pivot = data[0].clone();  // Clone to avoid borrow issues
-        
-        let mut lt = 0;  // Elements < pivot
-        let mut i = 1;   // Current element
+        let pivot = data[0].clone(); // Clone to avoid borrow issues
+
+        let mut lt = 0; // Elements < pivot
+        let mut i = 1; // Current element
         let mut gt = data.len(); // Elements > pivot
 
         while i < gt {
@@ -378,7 +385,7 @@ pub unsafe fn simd_find_min_max(data: &[i32]) -> (i32, i32) {
 
     let mut min_vec = _mm256_set1_epi32(i32::MAX);
     let mut max_vec = _mm256_set1_epi32(i32::MIN);
-    
+
     let chunks = data.chunks_exact(8);
     let remainder = chunks.remainder();
 
@@ -391,7 +398,7 @@ pub unsafe fn simd_find_min_max(data: &[i32]) -> (i32, i32) {
     // Extract min/max from vectors
     let min_arr: [i32; 8] = std::mem::transmute(min_vec);
     let max_arr: [i32; 8] = std::mem::transmute(max_vec);
-    
+
     let mut min = *min_arr.iter().min().expect("Empty min array in radix sort");
     let mut max = *max_arr.iter().max().expect("Empty max array in radix sort");
 
@@ -410,15 +417,15 @@ pub fn simd_find_min_max(data: &[i32]) -> (i32, i32) {
     if data.is_empty() {
         return (i32::MAX, i32::MIN);
     }
-    
+
     let mut min = data[0];
     let mut max = data[0];
-    
+
     for &val in &data[1..] {
         min = min.min(val);
         max = max.max(val);
     }
-    
+
     (min, max)
 }
 

@@ -1,18 +1,17 @@
 //! GNU sort implementation in Rust
-//! 
+//!
 //! A complete, production-ready implementation of the GNU sort utility
 //! with all major features including multiple comparison modes, field sorting,
 //! parallelization, and memory-efficient operations.
 
-use std::process;
 use clap::{Arg, Command};
+use std::process;
 
 // Import from the library modules
 use gnu_sort::{
-    config::{SortConfig, SortMode, SortConfigBuilder},
+    config::{SortConfig, SortConfigBuilder, SortMode},
     error::{SortError, SortResult},
-    sort,
-    EXIT_SUCCESS,
+    sort, EXIT_SUCCESS,
 };
 
 fn main() {
@@ -30,18 +29,19 @@ fn run() -> SortResult<i32> {
     // Check for legacy +N -M syntax and convert it to modern -k syntax
     let args: Vec<String> = std::env::args().collect();
     let converted_args = convert_legacy_syntax(&args);
-    
+
     let matches = build_cli().get_matches_from(converted_args);
-    
+
     // Build configuration from command line arguments
     let config = parse_config_from_matches(&matches)?;
-    
+
     // Get input files
-    let input_files: Vec<String> = matches.get_many::<String>("files")
+    let input_files: Vec<String> = matches
+        .get_many::<String>("files")
         .unwrap_or_default()
         .map(|s| s.clone())
         .collect();
-    
+
     // Execute the sort operation
     sort(&config, &input_files)
 }
@@ -55,13 +55,13 @@ fn build_cli() -> Command {
         .long_about("Sort lines of text files according to various criteria. \n\nThis implementation is compatible with GNU sort and supports all major features including field sorting, numeric comparisons, and parallel processing.")
         .disable_help_flag(true)  // We use -h for human-numeric-sort
         .disable_version_flag(true)  // We use -V for version-sort
-        
+
         // Input files
         .arg(Arg::new("files")
             .help("Input files to sort (use '-' or omit for stdin)")
             .num_args(0..)
             .value_name("FILE"))
-            
+
         // Sort modes (mutually exclusive)
         .arg(Arg::new("numeric-sort")
             .short('n')
@@ -99,7 +99,7 @@ fn build_cli() -> Command {
             .long_help("Sort according to WORD: general-numeric -g, human-numeric -h, month -M, numeric -n, random -R, version -V")
             .value_name("WORD")
             .value_parser(["general-numeric", "human-numeric", "month", "numeric", "random", "version"]))
-            
+
         // Sort modifiers
         .arg(Arg::new("reverse")
             .short('r')
@@ -116,8 +116,8 @@ fn build_cli() -> Command {
             .long("stable")
             .help("Stabilize sort by disabling last-resort comparison")
             .action(clap::ArgAction::SetTrue))
-            
-        // Text processing options  
+
+        // Text processing options
         .arg(Arg::new("ignore-case")
             .short('f')
             .long("ignore-case")
@@ -138,7 +138,7 @@ fn build_cli() -> Command {
             .long("ignore-nonprinting")
             .help("Consider only printable characters")
             .action(clap::ArgAction::SetTrue))
-            
+
         // Field and key options
         .arg(Arg::new("field-separator")
             .short('t')
@@ -152,7 +152,7 @@ fn build_cli() -> Command {
             .long_help("Sort via a key; KEYDEF gives location and type.\n\nKEYDEF is F[.C][OPTS][,F[.C][OPTS]] for start and stop position, where F is a field number and C a character position in the field; both are origin 1, and the stop position defaults to the line's end.\n\nIf neither -t nor -b is in effect, characters in a field are counted from the beginning of the whitespace separating the preceding field; otherwise they are counted from the beginning of the field.\n\nOPTS is one or more single-letter ordering options [bdfgiMnRrVz], which override global ordering options for that key. If no key is given, use the entire line as the key.\n\nExamples:\n  1    - sort by first field\n  2,4  - sort by fields 2 through 4\n  1.3,1.5 - sort by characters 3-5 of field 1\n  2nr  - sort by field 2 numerically in reverse")
             .value_name("KEYDEF")
             .action(clap::ArgAction::Append))
-            
+
         // I/O options
         .arg(Arg::new("output")
             .short('o')
@@ -164,7 +164,7 @@ fn build_cli() -> Command {
             .long("zero-terminated")
             .help("Line delimiter is NUL, not newline")
             .action(clap::ArgAction::SetTrue))
-            
+
         // Operation modes
         .arg(Arg::new("check")
             .short('c')
@@ -181,7 +181,7 @@ fn build_cli() -> Command {
             .long("merge")
             .help("Merge already sorted files; do not sort")
             .action(clap::ArgAction::SetTrue))
-            
+
         // Performance options
         .arg(Arg::new("buffer-size")
             .short('S')
@@ -198,7 +198,7 @@ fn build_cli() -> Command {
             .long("temporary-directory")
             .help("Use DIR for temporaries, not $TMPDIR or /tmp")
             .value_name("DIR"))
-            
+
         // Additional options
         .arg(Arg::new("compress-program")
             .long("compress-program")
@@ -212,7 +212,7 @@ fn build_cli() -> Command {
             .long("files0-from")
             .help("Read input from the files specified by NUL-terminated names in file F")
             .value_name("F"))
-            
+
         // Add explicit help and version options since we disabled the automatic ones
         .arg(Arg::new("help")
             .long("help")
@@ -228,15 +228,15 @@ fn build_cli() -> Command {
 fn convert_legacy_syntax(args: &[String]) -> Vec<String> {
     let mut converted = Vec::new();
     converted.push(args[0].clone()); // Program name
-    
+
     let mut i = 1;
     while i < args.len() {
         let arg = &args[i];
-        
+
         if arg.starts_with('+') && arg.len() > 1 {
             // Legacy start position +N
             if let Ok(start_field) = arg[1..].parse::<usize>() {
-                // Look for corresponding -M 
+                // Look for corresponding -M
                 if i + 1 < args.len() && args[i + 1].starts_with('-') && args[i + 1].len() > 1 {
                     if let Ok(end_field) = args[i + 1][1..].parse::<usize>() {
                         // Convert +N -M to -k (N+1),(M)
@@ -253,19 +253,19 @@ fn convert_legacy_syntax(args: &[String]) -> Vec<String> {
                 continue;
             }
         }
-        
+
         // Regular argument, copy as-is
         converted.push(arg.clone());
         i += 1;
     }
-    
+
     converted
 }
 
 /// Parse configuration from command line matches
 fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfig> {
     let mut builder = SortConfigBuilder::new();
-    
+
     // Determine sort mode (mutually exclusive)
     let sort_mode = if matches.get_flag("numeric-sort") {
         SortMode::Numeric
@@ -287,14 +287,19 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
             "numeric" => SortMode::Numeric,
             "random" => SortMode::Random,
             "version" => SortMode::Version,
-            _ => return Err(SortError::parse_error(&format!("unknown sort type: {}", sort_word))),
+            _ => {
+                return Err(SortError::parse_error(&format!(
+                    "unknown sort type: {}",
+                    sort_word
+                )))
+            }
         }
     } else {
         SortMode::Lexicographic
     };
-    
+
     builder = builder.mode(sort_mode);
-    
+
     // Apply boolean flags
     if matches.get_flag("reverse") {
         builder = builder.reverse();
@@ -314,16 +319,16 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
     if matches.get_flag("zero-terminated") {
         builder = builder.zero_terminated();
     }
-    
+
     let mut config = builder.build()?;
-    
+
     // Set additional options not handled by builder
     config.ignore_case = matches.get_flag("ignore-case");
     config.dictionary_order = matches.get_flag("dictionary-order");
     config.ignore_leading_blanks = matches.get_flag("ignore-leading-blanks");
     config.ignore_nonprinting = matches.get_flag("ignore-nonprinting");
     config.debug = matches.get_flag("debug");
-    
+
     // Set field separator
     if let Some(sep_str) = matches.get_one::<String>("field-separator") {
         if sep_str.len() == 1 {
@@ -332,29 +337,30 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
             return Err(SortError::invalid_field_separator(sep_str));
         }
     }
-    
+
     // Set output file
     if let Some(output) = matches.get_one::<String>("output") {
         config.output_file = Some(output.clone());
     }
-    
+
     // Set buffer size
     if let Some(buffer_str) = matches.get_one::<String>("buffer-size") {
         config.set_buffer_size_from_string(buffer_str)?;
     }
-    
+
     // Set parallel threads
     if let Some(parallel_str) = matches.get_one::<String>("parallel") {
-        let threads: usize = parallel_str.parse()
-            .map_err(|_| SortError::parse_error(&format!("invalid thread count: {}", parallel_str)))?;
+        let threads: usize = parallel_str.parse().map_err(|_| {
+            SortError::parse_error(&format!("invalid thread count: {}", parallel_str))
+        })?;
         config.parallel_threads = Some(threads);
     }
-    
+
     // Set temporary directory
     if let Some(temp_dir) = matches.get_one::<String>("temporary-directory") {
         config.temp_dir = Some(temp_dir.clone());
     }
-    
+
     // Parse sort keys from -k options
     if let Some(key_defs) = matches.get_many::<String>("key") {
         use gnu_sort::config::SortKey;
@@ -363,15 +369,15 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
             config.keys.push(key);
         }
     }
-    
+
     // Handle files0-from option
     if let Some(files0_file) = matches.get_one::<String>("files0-from") {
         config.input_files = read_files_from_null_separated_file(files0_file)?;
     }
-    
+
     // Validate the final configuration
     config.validate()?;
-    
+
     Ok(config)
 }
 
@@ -379,19 +385,18 @@ fn parse_config_from_matches(matches: &clap::ArgMatches) -> SortResult<SortConfi
 fn read_files_from_null_separated_file(filename: &str) -> SortResult<Vec<String>> {
     use std::fs::File;
     use std::io::Read;
-    
-    let mut file = File::open(filename)
-        .map_err(|_| SortError::file_not_found(filename))?;
-    
+
+    let mut file = File::open(filename).map_err(|_| SortError::file_not_found(filename))?;
+
     let mut contents = Vec::new();
     file.read_to_end(&mut contents)?;
-    
+
     let files: Vec<String> = contents
         .split(|&b| b == 0)
         .filter(|chunk| !chunk.is_empty())
         .map(|chunk| String::from_utf8_lossy(chunk).into_owned())
         .collect();
-    
+
     Ok(files)
 }
 
@@ -399,43 +404,52 @@ fn read_files_from_null_separated_file(filename: &str) -> SortResult<Vec<String>
 mod tests {
     use super::*;
     use crate::config::SortMode;
-    
+
     #[test]
     fn test_parse_basic_config() {
         let app = build_cli();
-        let matches = app.try_get_matches_from(&["sort", "-n", "-r"]).expect("Failed to parse test arguments");
-        
+        let matches = app
+            .try_get_matches_from(&["sort", "-n", "-r"])
+            .expect("Failed to parse test arguments");
+
         let config = parse_config_from_matches(&matches).expect("Failed to parse test config");
-        
+
         assert_eq!(config.mode, SortMode::Numeric);
         assert!(config.reverse);
     }
-    
+
     #[test]
     fn test_parse_complex_config() {
         let app = build_cli();
-        let matches = app.try_get_matches_from(&[
-            "sort", 
-            "-k", "2,4",
-            "-t", ":",
-            "-u",
-            "-o", "output.txt",
-            "input.txt"
-        ]).expect("Failed to parse test arguments");
-        
+        let matches = app
+            .try_get_matches_from(&[
+                "sort",
+                "-k",
+                "2,4",
+                "-t",
+                ":",
+                "-u",
+                "-o",
+                "output.txt",
+                "input.txt",
+            ])
+            .expect("Failed to parse test arguments");
+
         let config = parse_config_from_matches(&matches).expect("Failed to parse test config");
-        
+
         assert!(config.unique);
         assert_eq!(config.field_separator, Some(':'));
         assert_eq!(config.output_file, Some("output.txt".to_string()));
         assert!(!config.keys.is_empty());
     }
-    
+
     #[test]
     fn test_conflicting_options() {
         let app = build_cli();
-        let matches = app.try_get_matches_from(&["sort", "-c", "-m"]).expect("Failed to parse test arguments");
-        
+        let matches = app
+            .try_get_matches_from(&["sort", "-c", "-m"])
+            .expect("Failed to parse test arguments");
+
         let result = parse_config_from_matches(&matches);
         assert!(result.is_err());
     }

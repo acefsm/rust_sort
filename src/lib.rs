@@ -1,5 +1,5 @@
 //! GNU sort implementation in Rust
-//! 
+//!
 //! This crate provides a complete, production-ready implementation of the GNU sort utility
 //! with all major features including multiple comparison modes, field sorting, parallelization,
 //! and memory-efficient operations.
@@ -7,23 +7,23 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(clippy::all)]
 
-pub mod error;
 pub mod config;
+pub mod error;
 
 // Core sorting implementations
-pub mod zero_copy;
+pub mod adaptive_sort;
+pub mod args;
 pub mod core_sort;
+pub mod external_sort;
+pub mod hash_sort;
+pub mod locale;
 pub mod radix_sort;
 pub mod simd_compare;
-pub mod external_sort;
-pub mod adaptive_sort;
-pub mod hash_sort;
-pub mod args;
-pub mod locale;
+pub mod zero_copy;
 
 // Re-export commonly used types
-pub use error::{SortError, SortResult};
 pub use config::{SortConfig, SortMode, SortOrder};
+pub use error::{SortError, SortResult};
 
 /// Exit codes matching GNU sort
 pub const EXIT_SUCCESS: i32 = 0;
@@ -48,8 +48,10 @@ pub fn sort(config: &SortConfig, input_files: &[String]) -> SortResult<i32> {
         check: config.check,
         merge: config.merge,
     };
-    
+
     let core_sort = crate::core_sort::CoreSort::new(args, config.clone());
-    core_sort.sort().map_err(|e| SortError::internal(&e.to_string()))?;
+    core_sort
+        .sort()
+        .map_err(|e| SortError::internal(&e.to_string()))?;
     Ok(EXIT_SUCCESS)
 }

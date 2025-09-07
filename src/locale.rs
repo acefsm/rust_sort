@@ -1,12 +1,12 @@
 //! Locale-aware string comparison support for LC_COLLATE
-//! 
+//!
 //! This module provides locale-aware string comparison using the system's
 //! strcoll function, respecting the LC_COLLATE environment variable.
 
 use std::cmp::Ordering;
+use std::env;
 use std::ffi::CString;
 use std::sync::OnceLock;
-use std::env;
 
 /// Global locale configuration
 static LOCALE_CONFIG: OnceLock<LocaleConfig> = OnceLock::new();
@@ -30,31 +30,32 @@ impl LocaleConfig {
             .or_else(|_| env::var("LC_ALL"))
             .or_else(|_| env::var("LANG"))
             .unwrap_or_else(|_| "C".to_string());
-        
+
         // Check if locale is C or POSIX (byte comparison)
         let enabled = !locale.is_empty() && locale != "C" && locale != "POSIX";
         let is_utf8 = locale.contains("UTF-8") || locale.contains("utf8");
-        
+
         // Set locale for strcoll
         if enabled {
             unsafe {
-                let locale_cstr = CString::new(locale.clone()).unwrap_or_else(|_| CString::new("C").unwrap());
+                let locale_cstr =
+                    CString::new(locale.clone()).unwrap_or_else(|_| CString::new("C").unwrap());
                 libc::setlocale(libc::LC_COLLATE, locale_cstr.as_ptr());
             }
         }
-        
+
         Self {
             enabled,
             locale_name: locale,
             is_utf8,
         }
     }
-    
+
     /// Get the global locale configuration
     pub fn get() -> &'static LocaleConfig {
         LOCALE_CONFIG.get_or_init(Self::init)
     }
-    
+
     /// Check if locale-aware comparison is enabled
     pub fn is_enabled() -> bool {
         Self::get().enabled
@@ -67,7 +68,7 @@ pub fn strcoll_compare(a: &[u8], b: &[u8]) -> Ordering {
     if a == b {
         return Ordering::Equal;
     }
-    
+
     // Convert to null-terminated C strings
     // For non-UTF8 locales, we need to handle invalid sequences
     let a_str = match std::str::from_utf8(a) {
@@ -77,7 +78,7 @@ pub fn strcoll_compare(a: &[u8], b: &[u8]) -> Ordering {
             return a.cmp(b);
         }
     };
-    
+
     let b_str = match std::str::from_utf8(b) {
         Ok(s) => s,
         Err(_) => {
@@ -85,7 +86,7 @@ pub fn strcoll_compare(a: &[u8], b: &[u8]) -> Ordering {
             return a.cmp(b);
         }
     };
-    
+
     // Create C strings
     let a_cstr = match CString::new(a_str) {
         Ok(s) => s,
@@ -94,7 +95,7 @@ pub fn strcoll_compare(a: &[u8], b: &[u8]) -> Ordering {
             return a.cmp(b);
         }
     };
-    
+
     let b_cstr = match CString::new(b_str) {
         Ok(s) => s,
         Err(_) => {
@@ -102,7 +103,7 @@ pub fn strcoll_compare(a: &[u8], b: &[u8]) -> Ordering {
             return a.cmp(b);
         }
     };
-    
+
     // Call strcoll for locale-aware comparison
     unsafe {
         let result = libc::strcoll(a_cstr.as_ptr(), b_cstr.as_ptr());
@@ -121,22 +122,22 @@ pub fn strcasecoll_compare(a: &[u8], b: &[u8]) -> Ordering {
     if a == b {
         return Ordering::Equal;
     }
-    
+
     // Convert to strings
     let a_str = match std::str::from_utf8(a) {
         Ok(s) => s,
         Err(_) => return case_insensitive_byte_compare(a, b),
     };
-    
+
     let b_str = match std::str::from_utf8(b) {
         Ok(s) => s,
         Err(_) => return case_insensitive_byte_compare(a, b),
     };
-    
+
     // Convert to lowercase for case-insensitive comparison
     let a_lower = a_str.to_lowercase();
     let b_lower = b_str.to_lowercase();
-    
+
     // Use strcoll on lowercased strings
     strcoll_compare(a_lower.as_bytes(), b_lower.as_bytes())
 }
@@ -144,7 +145,7 @@ pub fn strcasecoll_compare(a: &[u8], b: &[u8]) -> Ordering {
 /// Fallback case-insensitive byte comparison
 fn case_insensitive_byte_compare(a: &[u8], b: &[u8]) -> Ordering {
     let len = a.len().min(b.len());
-    
+
     for i in 0..len {
         let ca = a[i].to_ascii_lowercase();
         let cb = b[i].to_ascii_lowercase();
@@ -153,7 +154,7 @@ fn case_insensitive_byte_compare(a: &[u8], b: &[u8]) -> Ordering {
             other => return other,
         }
     }
-    
+
     a.len().cmp(&b.len())
 }
 
@@ -178,7 +179,7 @@ pub fn smart_compare(a: &[u8], b: &[u8], ignore_case: bool) -> Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_c_locale() {
         env::set_var("LC_COLLATE", "C");
@@ -186,7 +187,7 @@ mod tests {
         assert!(!config.enabled);
         assert_eq!(config.locale_name, "C");
     }
-    
+
     #[test]
     fn test_utf8_locale() {
         env::set_var("LC_COLLATE", "en_US.UTF-8");
@@ -195,7 +196,7 @@ mod tests {
         assert!(config.is_utf8);
         assert_eq!(config.locale_name, "en_US.UTF-8");
     }
-    
+
     #[test]
     fn test_strcoll_basic() {
         // Test basic ASCII comparison
@@ -205,13 +206,13 @@ mod tests {
         assert_eq!(strcoll_compare(b, a), Ordering::Greater);
         assert_eq!(strcoll_compare(a, a), Ordering::Equal);
     }
-    
+
     #[test]
     fn test_case_insensitive() {
         let a = b"Apple";
         let b = b"apple";
         assert_eq!(strcasecoll_compare(a, b), Ordering::Equal);
-        
+
         let a = b"ZEBRA";
         let b = b"aardvark";
         assert_eq!(strcasecoll_compare(a, b), Ordering::Greater);

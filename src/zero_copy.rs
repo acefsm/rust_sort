@@ -1,10 +1,10 @@
+use crate::locale;
+use crate::simd_compare::SIMDCompare;
 use memmap2::Mmap;
-use std::path::Path;
+use std::cmp::Ordering;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
-use std::cmp::Ordering;
-use crate::simd_compare::SIMDCompare;
-use crate::locale;
+use std::path::Path;
 
 /// Zero-copy line representation that points directly into memory-mapped data
 #[derive(Debug, Clone, Copy)]
@@ -40,9 +40,7 @@ impl Line {
     pub unsafe fn as_bytes(&self) -> &[u8] {
         // SAFETY: We create a slice from the raw pointer with the stored length.
         // The caller guarantees the memory is still valid and immutable.
-        unsafe {
-            std::slice::from_raw_parts(self.start, self.len as usize)
-        }
+        unsafe { std::slice::from_raw_parts(self.start, self.len as usize) }
     }
 
     /// Extract a field from the line based on field separator
@@ -51,18 +49,18 @@ impl Line {
         if field_num == 0 {
             return None;
         }
-        
+
         let bytes = unsafe { self.as_bytes() };
-        
+
         // If no separator specified, use whitespace
         if separator.is_none() {
             return self.extract_field_by_whitespace(bytes, field_num);
         }
-        
+
         let sep_byte = separator.unwrap() as u8;
         let mut field_count = 1;
         let mut field_start = 0;
-        
+
         for (i, &byte) in bytes.iter().enumerate() {
             if byte == sep_byte {
                 if field_count == field_num {
@@ -72,34 +70,38 @@ impl Line {
                 field_start = i + 1;
             }
         }
-        
+
         // Check if we're looking for the last field
         if field_count == field_num && field_start < bytes.len() {
             return Some(&bytes[field_start..]);
         }
-        
+
         None
     }
-    
+
     /// Extract field by whitespace (default behavior when no separator is specified)
-    fn extract_field_by_whitespace<'a>(&self, bytes: &'a [u8], field_num: usize) -> Option<&'a [u8]> {
+    fn extract_field_by_whitespace<'a>(
+        &self,
+        bytes: &'a [u8],
+        field_num: usize,
+    ) -> Option<&'a [u8]> {
         let mut field_count = 0;
         let mut in_field = false;
-        
+
         for (i, &byte) in bytes.iter().enumerate() {
             let is_whitespace = byte == b' ' || byte == b'\t';
-            
+
             if !is_whitespace && !in_field {
                 // Starting a new field
                 field_count += 1;
                 in_field = true;
-                
+
                 if field_count == field_num {
                     // Found the start of our target field
                     // Now find where it ends
                     for (j, &b) in bytes[i..].iter().enumerate() {
                         if b == b' ' || b == b'\t' {
-                            return Some(&bytes[i..i+j]);
+                            return Some(&bytes[i..i + j]);
                         }
                     }
                     // Field goes to end of line
@@ -110,15 +112,19 @@ impl Line {
                 in_field = false;
             }
         }
-        
+
         None
     }
-    
+
     /// Extract a key region from the line based on SortKey specification
-    pub fn extract_key(&self, key: &crate::config::SortKey, separator: Option<char>) -> Option<&[u8]> {
+    pub fn extract_key(
+        &self,
+        key: &crate::config::SortKey,
+        separator: Option<char>,
+    ) -> Option<&[u8]> {
         // Extract the starting field
         let start_field_data = self.extract_field(key.start_field, separator)?;
-        
+
         // If no end field specified, use just the start field
         if key.end_field.is_none() {
             // Apply character positions if specified
@@ -129,12 +135,12 @@ impl Line {
             }
             return Some(start_field_data);
         }
-        
+
         // Complex case: range of fields
         // For now, just extract from start field to end field
         // This is a simplified implementation
         let bytes = unsafe { self.as_bytes() };
-        
+
         // Find start position
         let start_pos = if let Some(field_data) = self.extract_field(key.start_field, separator) {
             let offset = field_data.as_ptr() as usize - bytes.as_ptr() as usize;
@@ -150,7 +156,7 @@ impl Line {
         } else {
             return None;
         };
-        
+
         // Find end position
         let end_pos = if let Some(end_field) = key.end_field {
             if let Some(field_data) = self.extract_field(end_field, separator) {
@@ -171,21 +177,23 @@ impl Line {
         } else {
             bytes.len()
         };
-        
+
         if start_pos < end_pos && start_pos < bytes.len() {
             Some(&bytes[start_pos..end_pos.min(bytes.len())])
         } else {
             None
         }
     }
-    
+
     /// Fast numeric parsing for simple integers (optimized path)
     pub fn parse_int(&self) -> Option<i64> {
         // SAFETY: as_bytes() is safe here because Line was created from valid memory
         // that remains valid throughout the sorting operation
         let bytes = unsafe { self.as_bytes() };
-        if bytes.is_empty() { return Some(0); }
-        
+        if bytes.is_empty() {
+            return Some(0);
+        }
+
         let mut start = 0;
         let negative = if bytes[0] == b'-' {
             start = 1;
@@ -193,16 +201,20 @@ impl Line {
         } else {
             false
         };
-        
-        if start >= bytes.len() { return None; }
-        
+
+        if start >= bytes.len() {
+            return None;
+        }
+
         let mut result: i64 = 0;
         for &byte in &bytes[start..] {
-            if !byte.is_ascii_digit() { return None; }
+            if !byte.is_ascii_digit() {
+                return None;
+            }
             result = result.checked_mul(10)?;
             result = result.checked_add((byte - b'0') as i64)?;
         }
-        
+
         Some(if negative { -result } else { result })
     }
 
@@ -211,12 +223,12 @@ impl Line {
         let bytes = unsafe { self.as_bytes() };
         if let Ok(s) = std::str::from_utf8(bytes) {
             let trimmed = s.trim();
-            
+
             // Handle special cases
             if trimmed.is_empty() {
                 return 0.0;
             }
-            
+
             // Parse as float (handles scientific notation automatically)
             match trimmed.parse::<f64>() {
                 Ok(val) => val,
@@ -239,12 +251,12 @@ impl Line {
             f64::NEG_INFINITY
         }
     }
-    
+
     /// Compare as general numeric values (scientific notation support)
     pub fn compare_general_numeric(&self, other: &Line) -> Ordering {
         let a = self.parse_general_numeric();
         let b = other.parse_general_numeric();
-        
+
         // Handle NaN specially (NaN sorts last in GNU sort)
         match (a.is_nan(), b.is_nan()) {
             (true, true) => unsafe { self.as_bytes().cmp(other.as_bytes()) }, // Lexicographic tie-breaker
@@ -258,30 +270,36 @@ impl Line {
                         // This matches GNU sort behavior
                         unsafe { self.as_bytes().cmp(other.as_bytes()) }
                     }
-                    other => other
+                    other => other,
                 }
             }
         }
     }
 
     /// Compare lines using field-based sorting with multiple keys
-    pub fn compare_with_keys(&self, other: &Line, keys: &[crate::config::SortKey], separator: Option<char>, config: &crate::config::SortConfig) -> Ordering {
+    pub fn compare_with_keys(
+        &self,
+        other: &Line,
+        keys: &[crate::config::SortKey],
+        separator: Option<char>,
+        config: &crate::config::SortConfig,
+    ) -> Ordering {
         if keys.is_empty() {
             // No keys specified, compare entire lines based on global options
             return self.compare_with_config(other, config);
         }
-        
+
         // Compare using each key in order
         for key in keys {
             let self_field = self.extract_key(key, separator);
             let other_field = other.extract_key(key, separator);
-            
+
             let cmp = match (self_field, other_field) {
                 (Some(a), Some(b)) => {
                     // Create temporary Line structs for the extracted fields
                     let a_line = Line::new(a);
                     let b_line = Line::new(b);
-                    
+
                     // Compare based on key options
                     let result = if key.options.general_numeric {
                         a_line.compare_general_numeric(&b_line)
@@ -301,7 +319,7 @@ impl Line {
                     } else {
                         a_line.compare_lexicographic(&b_line)
                     };
-                    
+
                     // Apply reverse if specified for this key
                     if key.options.reverse {
                         result.reverse()
@@ -313,12 +331,12 @@ impl Line {
                 (Some(_), None) => Ordering::Greater,
                 (None, None) => Ordering::Equal,
             };
-            
+
             if cmp != Ordering::Equal {
                 return cmp;
             }
         }
-        
+
         // All keys compared equal, use stable sort order (original line order)
         if config.stable {
             Ordering::Equal
@@ -327,9 +345,13 @@ impl Line {
             self.compare_lexicographic(other)
         }
     }
-    
+
     /// Compare lines based on global configuration (when no keys are specified)
-    pub fn compare_with_config(&self, other: &Line, config: &crate::config::SortConfig) -> Ordering {
+    pub fn compare_with_config(
+        &self,
+        other: &Line,
+        config: &crate::config::SortConfig,
+    ) -> Ordering {
         let cmp = match config.mode {
             crate::config::SortMode::GeneralNumeric => self.compare_general_numeric(other),
             crate::config::SortMode::Numeric => self.compare_numeric(other),
@@ -342,21 +364,21 @@ impl Line {
             }
             _ => self.compare_lexicographic(other), // Default for unimplemented modes
         };
-        
+
         if config.reverse {
             cmp.reverse()
         } else {
             cmp
         }
     }
-    
+
     /// Fast comparison for numeric values (GNU sort style - no string conversion)
     pub fn compare_numeric(&self, other: &Line) -> Ordering {
         // Try fast path for simple integers
         if let (Some(a), Some(b)) = (self.parse_int(), other.parse_int()) {
             return a.cmp(&b);
         }
-        
+
         // GNU sort style: compare as strings with numeric logic
         self.compare_numeric_string_style(other)
     }
@@ -365,22 +387,28 @@ impl Line {
     fn compare_numeric_string_style(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         // Skip leading whitespace
         let a_start = self.skip_leading_space(a_bytes);
         let b_start = self.skip_leading_space(b_bytes);
-        
-        if a_start >= a_bytes.len() && b_start >= b_bytes.len() { return Ordering::Equal; }
-        if a_start >= a_bytes.len() { return Ordering::Less; }
-        if b_start >= b_bytes.len() { return Ordering::Greater; }
-        
+
+        if a_start >= a_bytes.len() && b_start >= b_bytes.len() {
+            return Ordering::Equal;
+        }
+        if a_start >= a_bytes.len() {
+            return Ordering::Less;
+        }
+        if b_start >= b_bytes.len() {
+            return Ordering::Greater;
+        }
+
         let a_rest = &a_bytes[a_start..];
         let b_rest = &b_bytes[b_start..];
-        
+
         // Check signs
         let (a_negative, a_num_start) = self.parse_sign(a_rest);
         let (b_negative, b_num_start) = self.parse_sign(b_rest);
-        
+
         match (a_negative, b_negative) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
@@ -388,15 +416,15 @@ impl Line {
                 // Same sign - compare magnitudes
                 let a_digits = &a_rest[a_num_start..];
                 let b_digits = &b_rest[b_num_start..];
-                
+
                 // Skip leading zeros (GNU sort behavior)
                 let a_no_zeros = self.skip_leading_zeros(a_digits);
                 let b_no_zeros = self.skip_leading_zeros(b_digits);
-                
+
                 // Compare by digit count first (major optimization!)
                 let a_digit_count = self.count_leading_digits(&a_digits[a_no_zeros..]);
                 let b_digit_count = self.count_leading_digits(&b_digits[b_no_zeros..]);
-                
+
                 let magnitude_cmp = match a_digit_count.cmp(&b_digit_count) {
                     Ordering::Equal => {
                         // Same digit count - lexicographic comparison
@@ -405,18 +433,27 @@ impl Line {
                     }
                     other => other,
                 };
-                
-                if a_negative { magnitude_cmp.reverse() } else { magnitude_cmp }
+
+                if a_negative {
+                    magnitude_cmp.reverse()
+                } else {
+                    magnitude_cmp
+                }
             }
         }
     }
 
     fn skip_leading_space(&self, bytes: &[u8]) -> usize {
-        bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(bytes.len())
+        bytes
+            .iter()
+            .position(|&b| b != b' ' && b != b'\t')
+            .unwrap_or(bytes.len())
     }
 
     fn parse_sign(&self, bytes: &[u8]) -> (bool, usize) {
-        if bytes.is_empty() { return (false, 0); }
+        if bytes.is_empty() {
+            return (false, 0);
+        }
         match bytes[0] {
             b'-' => (true, 1),
             b'+' => (false, 1),
@@ -436,41 +473,59 @@ impl Line {
     fn compare_numeric_bytes(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         // Skip leading whitespace
-        let a_trimmed = a_bytes.iter().skip_while(|&&b| b == b' ' || b == b'\t').collect::<Vec<_>>();
-        let b_trimmed = b_bytes.iter().skip_while(|&&b| b == b' ' || b == b'\t').collect::<Vec<_>>();
-        
-        if a_trimmed.is_empty() && b_trimmed.is_empty() { return Ordering::Equal; }
-        if a_trimmed.is_empty() { return Ordering::Less; }
-        if b_trimmed.is_empty() { return Ordering::Greater; }
-        
+        let a_trimmed = a_bytes
+            .iter()
+            .skip_while(|&&b| b == b' ' || b == b'\t')
+            .collect::<Vec<_>>();
+        let b_trimmed = b_bytes
+            .iter()
+            .skip_while(|&&b| b == b' ' || b == b'\t')
+            .collect::<Vec<_>>();
+
+        if a_trimmed.is_empty() && b_trimmed.is_empty() {
+            return Ordering::Equal;
+        }
+        if a_trimmed.is_empty() {
+            return Ordering::Less;
+        }
+        if b_trimmed.is_empty() {
+            return Ordering::Greater;
+        }
+
         // Compare signs
         let a_negative = *a_trimmed[0] == b'-';
         let b_negative = *b_trimmed[0] == b'-';
-        
+
         match (a_negative, b_negative) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => {
                 // Same sign, compare magnitudes
-                let a_digits: Vec<u8> = a_trimmed.iter()
+                let a_digits: Vec<u8> = a_trimmed
+                    .iter()
                     .skip_while(|&&&b| b == b'-' || b == b'+')
                     .filter(|&&&b| b.is_ascii_digit())
                     .map(|&&b| b)
                     .collect();
-                let b_digits: Vec<u8> = b_trimmed.iter()
+                let b_digits: Vec<u8> = b_trimmed
+                    .iter()
                     .skip_while(|&&&b| b == b'-' || b == b'+')
                     .filter(|&&&b| b.is_ascii_digit())
                     .map(|&&b| b)
                     .collect();
-                
+
                 let magnitude_cmp = match a_digits.len().cmp(&b_digits.len()) {
                     Ordering::Equal => a_digits.cmp(&b_digits),
                     other => other,
                 };
-                
-                if a_negative { magnitude_cmp.reverse() } else { magnitude_cmp }
+
+                if a_negative {
+                    magnitude_cmp.reverse()
+                } else {
+                    magnitude_cmp
+                }
             }
         }
     }
@@ -489,7 +544,7 @@ impl Line {
     pub fn compare_ignore_case(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         // Use locale-aware comparison if enabled
         if locale::LocaleConfig::is_enabled() {
             locale::smart_compare(a_bytes, b_bytes, true)
@@ -503,7 +558,7 @@ impl Line {
     pub fn compare_lexicographic(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         // Use locale-aware comparison if enabled
         if locale::LocaleConfig::is_enabled() {
             locale::smart_compare(a_bytes, b_bytes, false)
@@ -525,14 +580,11 @@ impl MappedFile {
     pub fn new(path: &Path) -> io::Result<Self> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
-        
+
         // Parse lines while keeping references to the mmap
         let lines = parse_lines(&mmap);
-        
-        Ok(Self {
-            _mmap: mmap,
-            lines,
-        })
+
+        Ok(Self { _mmap: mmap, lines })
     }
 
     /// Get the lines in this file
@@ -545,7 +597,7 @@ impl MappedFile {
 fn parse_lines(data: &[u8]) -> Vec<Line> {
     let mut lines = Vec::new();
     let mut start = 0;
-    
+
     for (i, &byte) in data.iter().enumerate() {
         if byte == b'\n' {
             let line_data = &data[start..i];
@@ -553,13 +605,13 @@ fn parse_lines(data: &[u8]) -> Vec<Line> {
             start = i + 1;
         }
     }
-    
+
     // Handle last line if it doesn't end with newline
     if start < data.len() {
         let line_data = &data[start..];
         lines.push(Line::new(line_data));
     }
-    
+
     lines
 }
 
@@ -583,35 +635,35 @@ impl ZeroCopyReader {
     pub fn read_chunk(&mut self) -> io::Result<&[Line]> {
         self.buffer.clear();
         self.lines.clear();
-        
+
         let mut total_read = 0;
         const CHUNK_SIZE: usize = 64 * 1024;
-        
+
         // Read up to CHUNK_SIZE bytes
         while total_read < CHUNK_SIZE {
             let mut line_buf = Vec::new();
             let bytes_read = self.reader.read_until(b'\n', &mut line_buf)?;
-            
+
             if bytes_read == 0 {
                 break; // EOF
             }
-            
+
             let start_idx = self.buffer.len();
             self.buffer.extend_from_slice(&line_buf);
-            
+
             // Remove trailing newline if present
             let end_idx = if line_buf.ends_with(&[b'\n']) {
                 self.buffer.len() - 1
             } else {
                 self.buffer.len()
             };
-            
+
             let line_data = &self.buffer[start_idx..end_idx];
             self.lines.push(Line::new(line_data));
-            
+
             total_read += bytes_read;
         }
-        
+
         Ok(&self.lines)
     }
 }
@@ -621,12 +673,12 @@ pub fn compare_numeric_lines(a: &Line, b: &Line) -> Ordering {
     unsafe {
         let a_bytes = a.as_bytes();
         let b_bytes = b.as_bytes();
-        
+
         // Fast path for simple integer comparison
         if let (Some(a_num), Some(b_num)) = (parse_int(a_bytes), parse_int(b_bytes)) {
             return a_num.cmp(&b_num);
         }
-        
+
         // Fall back to lexicographic comparison for complex numbers
         compare_numeric_bytes(a_bytes, b_bytes)
     }
@@ -637,11 +689,11 @@ fn parse_int(bytes: &[u8]) -> Option<i64> {
     if bytes.is_empty() {
         return Some(0);
     }
-    
+
     let mut result: i64 = 0;
     let mut negative = false;
     let mut start = 0;
-    
+
     // Handle leading sign
     if bytes[0] == b'-' {
         negative = true;
@@ -649,21 +701,21 @@ fn parse_int(bytes: &[u8]) -> Option<i64> {
     } else if bytes[0] == b'+' {
         start = 1;
     }
-    
+
     // Parse digits
     for &byte in &bytes[start..] {
         if !byte.is_ascii_digit() {
             return None; // Not a simple integer
         }
-        
+
         result = result.checked_mul(10)?;
         result = result.checked_add((byte - b'0') as i64)?;
     }
-    
+
     if negative {
         result = -result;
     }
-    
+
     Some(result)
 }
 
@@ -672,7 +724,7 @@ fn compare_numeric_bytes(a: &[u8], b: &[u8]) -> Ordering {
     // Skip leading whitespace
     let a = skip_whitespace(a);
     let b = skip_whitespace(b);
-    
+
     // Handle empty strings
     match (a.is_empty(), b.is_empty()) {
         (true, true) => return Ordering::Equal,
@@ -682,21 +734,21 @@ fn compare_numeric_bytes(a: &[u8], b: &[u8]) -> Ordering {
             // Continue with comparison
         }
     }
-    
+
     // Extract signs
     let (a_negative, a_digits) = extract_sign(a);
     let (b_negative, b_digits) = extract_sign(b);
-    
+
     // Compare signs
     match (a_negative, b_negative) {
         (false, true) => return Ordering::Greater,
         (true, false) => return Ordering::Less,
         _ => {}
     }
-    
+
     // Both have same sign, compare magnitudes
     let magnitude_cmp = compare_magnitude(a_digits, b_digits);
-    
+
     if a_negative {
         magnitude_cmp.reverse()
     } else {
@@ -705,7 +757,10 @@ fn compare_numeric_bytes(a: &[u8], b: &[u8]) -> Ordering {
 }
 
 fn skip_whitespace(bytes: &[u8]) -> &[u8] {
-    let start = bytes.iter().position(|&b| !b.is_ascii_whitespace()).unwrap_or(bytes.len());
+    let start = bytes
+        .iter()
+        .position(|&b| !b.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
     &bytes[start..]
 }
 
@@ -723,23 +778,23 @@ fn compare_magnitude(a: &[u8], b: &[u8]) -> Ordering {
     // Find decimal points
     let a_dot = a.iter().position(|&b| b == b'.');
     let b_dot = b.iter().position(|&b| b == b'.');
-    
+
     let (a_int, a_frac) = match a_dot {
         Some(pos) => (&a[..pos], &a[pos + 1..]),
         None => (a, &[][..]),
     };
-    
+
     let (b_int, b_frac) = match b_dot {
         Some(pos) => (&b[..pos], &b[pos + 1..]),
         None => (b, &[][..]),
     };
-    
+
     // Compare integer parts
     let int_cmp = compare_integer_parts(a_int, b_int);
     if int_cmp != Ordering::Equal {
         return int_cmp;
     }
-    
+
     // Compare fractional parts
     compare_fractional_parts(a_frac, b_frac)
 }
@@ -748,30 +803,30 @@ fn compare_integer_parts(a: &[u8], b: &[u8]) -> Ordering {
     // Remove leading zeros
     let a = skip_leading_zeros(a);
     let b = skip_leading_zeros(b);
-    
+
     // Compare lengths first
     let len_cmp = a.len().cmp(&b.len());
     if len_cmp != Ordering::Equal {
         return len_cmp;
     }
-    
+
     // Same length, compare digit by digit
     a.cmp(b)
 }
 
 fn compare_fractional_parts(a: &[u8], b: &[u8]) -> Ordering {
     let max_len = a.len().max(b.len());
-    
+
     for i in 0..max_len {
         let a_digit = a.get(i).copied().unwrap_or(b'0');
         let b_digit = b.get(i).copied().unwrap_or(b'0');
-        
+
         let cmp = a_digit.cmp(&b_digit);
         if cmp != Ordering::Equal {
             return cmp;
         }
     }
-    
+
     Ordering::Equal
 }
 
@@ -792,17 +847,17 @@ pub fn compare_case_insensitive(a: &[u8], b: &[u8]) -> Ordering {
     } else {
         // Fast path for C/POSIX locale
         let min_len = a.len().min(b.len());
-        
+
         for i in 0..min_len {
             let a_char = a[i].to_ascii_lowercase();
             let b_char = b[i].to_ascii_lowercase();
-            
+
             match a_char.cmp(&b_char) {
                 Ordering::Equal => continue,
                 other => return other,
             }
         }
-        
+
         a.len().cmp(&b.len())
     }
 }
@@ -810,29 +865,29 @@ pub fn compare_case_insensitive(a: &[u8], b: &[u8]) -> Ordering {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_simple_line_creation() {
         let data = b"hello world";
         let line = Line::new(data);
-        
+
         unsafe {
             assert_eq!(line.as_bytes(), b"hello world");
         }
         assert_eq!(line.len(), 11);
     }
-    
+
     #[test]
     fn test_numeric_comparison() {
         let a = Line::new(b"123");
         let b = Line::new(b"456");
         let c = Line::new(b"123");
-        
+
         assert_eq!(compare_numeric_lines(&a, &b), Ordering::Less);
         assert_eq!(compare_numeric_lines(&b, &a), Ordering::Greater);
         assert_eq!(compare_numeric_lines(&a, &c), Ordering::Equal);
     }
-    
+
     #[test]
     fn test_simple_int_parsing() {
         assert_eq!(parse_int(b"123"), Some(123));
