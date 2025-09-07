@@ -160,8 +160,9 @@ impl CoreSort {
 
         // For stdin, we need to read into memory first
         let mut buffer = Vec::new();
-        const MAX_STDIN_SIZE: usize = 2 * 1024 * 1024 * 1024; // 2GB limit for stdin
-        file.take(MAX_STDIN_SIZE as u64).read_to_end(&mut buffer)?;
+        // Use u64 and convert to avoid overflow on 32-bit systems
+        const MAX_STDIN_SIZE: u64 = 2 * 1024 * 1024 * 1024; // 2GB limit for stdin
+        file.take(MAX_STDIN_SIZE).read_to_end(&mut buffer)?;
 
         // Create temporary file and sort it
         let temp_file = tempfile::NamedTempFile::new()?;
@@ -182,7 +183,7 @@ impl CoreSort {
 
         // Check file size to determine strategy
         let metadata = std::fs::metadata(path)?;
-        const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024 * 1024; // 100GB limit
+        const MAX_FILE_SIZE: u64 = 100u64 * 1024 * 1024 * 1024; // 100GB limit
         if metadata.len() > MAX_FILE_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,

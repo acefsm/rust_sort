@@ -418,8 +418,9 @@ impl SortConfig {
                     "buffer size too small (minimum 1KB)",
                 ));
             }
-            if buffer_size > 1024 * 1024 * 1024 * 8 {
-                // 8GB limit
+            // Use u64 to avoid overflow on 32-bit systems
+            const MAX_BUFFER_SIZE: u64 = 8 * 1024 * 1024 * 1024; // 8GB
+            if buffer_size as u64 > MAX_BUFFER_SIZE {
                 return Err(SortError::invalid_buffer_size(
                     "buffer size too large (maximum 8GB)",
                 ));
