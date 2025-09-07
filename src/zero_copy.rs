@@ -601,7 +601,13 @@ fn parse_lines(data: &[u8]) -> Vec<Line> {
 
     for (i, &byte) in data.iter().enumerate() {
         if byte == b'\n' {
-            let line_data = &data[start..i];
+            // Handle both Unix (\n) and Windows (\r\n) line endings
+            let end = if i > 0 && data[i - 1] == b'\r' {
+                i - 1
+            } else {
+                i
+            };
+            let line_data = &data[start..end];
             lines.push(Line::new(line_data));
             start = i + 1;
         }
@@ -609,7 +615,12 @@ fn parse_lines(data: &[u8]) -> Vec<Line> {
 
     // Handle last line if it doesn't end with newline
     if start < data.len() {
-        let line_data = &data[start..];
+        let mut end = data.len();
+        // Strip trailing \r if present
+        if end > start && data[end - 1] == b'\r' {
+            end -= 1;
+        }
+        let line_data = &data[start..end];
         lines.push(Line::new(line_data));
     }
 
@@ -898,5 +909,46 @@ mod tests {
         assert_eq!(parse_int(b""), Some(0));
         assert_eq!(parse_int(b"12.34"), None); // Not simple
         assert_eq!(parse_int(b"abc"), None); // Not numeric
+    }
+
+    #[test]
+    fn test_parse_lines_with_different_endings() {
+        // Test Unix line endings
+        let unix_data = b"line1\nline2\nline3";
+        let unix_lines = parse_lines(unix_data);
+        assert_eq!(unix_lines.len(), 3);
+        unsafe {
+            assert_eq!(unix_lines[0].as_bytes(), b"line1");
+            assert_eq!(unix_lines[1].as_bytes(), b"line2");
+            assert_eq!(unix_lines[2].as_bytes(), b"line3");
+        }
+
+        // Test Windows line endings
+        let windows_data = b"line1\r\nline2\r\nline3\r\n";
+        let windows_lines = parse_lines(windows_data);
+        assert_eq!(windows_lines.len(), 3);
+        unsafe {
+            assert_eq!(windows_lines[0].as_bytes(), b"line1");
+            assert_eq!(windows_lines[1].as_bytes(), b"line2");
+            assert_eq!(windows_lines[2].as_bytes(), b"line3");
+        }
+
+        // Test mixed line endings
+        let mixed_data = b"line1\r\nline2\nline3\r";
+        let mixed_lines = parse_lines(mixed_data);
+        assert_eq!(mixed_lines.len(), 3);
+        unsafe {
+            assert_eq!(mixed_lines[0].as_bytes(), b"line1");
+            assert_eq!(mixed_lines[1].as_bytes(), b"line2");
+            assert_eq!(mixed_lines[2].as_bytes(), b"line3");
+        }
+
+        // Test single line without ending
+        let single_data = b"single_line";
+        let single_lines = parse_lines(single_data);
+        assert_eq!(single_lines.len(), 1);
+        unsafe {
+            assert_eq!(single_lines[0].as_bytes(), b"single_line");
+        }
     }
 }

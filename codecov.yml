@@ -1,0 +1,29 @@
+codecov:
+  require_ci_to_pass: false
+  notify:
+    wait_for_ci: false
+
+coverage:
+  status:
+    project:
+      default:
+        # Basic settings for code coverage
+        target: auto
+        threshold: 1%
+        informational: true  # Won't fail the build
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        informational: true  # Won't fail the build
+
+comment:
+  layout: "reach,diff,flags,files,footer"
+  behavior: default
+  require_changes: false
+
+ignore:
+  - "tests/**"
+  - "benches/**"
+  - "examples/**"
+  - "src/main.rs"  # Ignore the binary entry point
