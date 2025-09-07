@@ -307,15 +307,44 @@ jobs:
         fi
         archive_name="rust-sort-${{ matrix.name }}.tar.gz"
         
+        echo "🔍 Debug info:"
+        echo "  Platform: ${{ matrix.name }}"
+        echo "  Target: ${{ matrix.target }}"
+        echo "  Binary: $binary_name"
+        echo "  Archive: $archive_name"
+        echo "  Working dir: $(pwd)"
+        
+        echo "📂 Target directory contents:"
+        ls -la target/${{ matrix.target }}/release/ || echo "❌ Target dir not found"
+        
         cd target/${{ matrix.target }}/release
         if [[ -f "$binary_name" ]]; then
           tar -czf "../../../release/$archive_name" "$binary_name"
           echo "✅ Created: release/$archive_name"
+          ls -la "../../../release/$archive_name"
         else
           echo "❌ Binary not found: $binary_name"
+          echo "Available files:"
+          ls -la .
           exit 1
         fi
         cd -
+        
+        echo "📦 Final release directory:"
+        ls -la release/
+
+    - name: Debug files before release
+      shell: bash
+      run: |
+        echo "🔍 Files to upload:"
+        ls -la release/ || echo "❌ No release directory"
+        echo "📊 File count: $(ls release/*.tar.gz 2>/dev/null | wc -l)"
+        if ls release/*.tar.gz >/dev/null 2>&1; then
+          echo "📋 Files:"
+          for file in release/*.tar.gz; do
+            echo "  - $(basename $file) ($(du -h $file | cut -f1))"
+          done
+        fi
 
     - name: Release
       uses: softprops/action-gh-release@v2
@@ -329,7 +358,7 @@ jobs:
           
           ### Features
           * Zero-copy operations for maximum performance
-          * SIMD-optimized comparisons
+          * SIMD-optimized comparisons  
           * Multi-threaded parallel sorting
           * Field-based sorting (-k option)
           * Locale-aware string comparison
@@ -339,6 +368,8 @@ jobs:
           * Linux: x86_64, aarch64, i686
           * Windows: x86_64, aarch64
           * macOS: x86_64, aarch64
+          
+          **Platform: ${{ matrix.name }} (${{ matrix.target }})**
         files: |
           ./release/*.tar.gz
         draft: false
