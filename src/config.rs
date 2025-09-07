@@ -19,7 +19,7 @@ pub struct SortKey {
 }
 
 /// Options specific to a sort key
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SortKeyOptions {
     pub numeric: bool,
     pub general_numeric: bool,
@@ -31,23 +31,6 @@ pub struct SortKeyOptions {
     pub human_numeric: bool,
     pub version: bool,
     pub random: bool,
-}
-
-impl Default for SortKeyOptions {
-    fn default() -> Self {
-        Self {
-            numeric: false,
-            general_numeric: false,
-            month: false,
-            reverse: false,
-            ignore_case: false,
-            dictionary_order: false,
-            ignore_leading_blanks: false,
-            human_numeric: false,
-            version: false,
-            random: false,
-        }
-    }
 }
 
 impl SortKey {
@@ -180,7 +163,7 @@ impl SortKey {
         };
 
         // Parse options (single letters after the field spec)
-        while let Some(ch) = chars.next() {
+        for ch in chars {
             match ch {
                 'n' => options.numeric = true,
                 'g' => options.general_numeric = true,

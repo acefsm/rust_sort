@@ -303,9 +303,9 @@ impl ExternalSort {
     }
 
     fn extract_sign<'a>(&self, bytes: &'a [u8]) -> (bool, &'a [u8]) {
-        if bytes.starts_with(&[b'-']) {
+        if bytes.starts_with(b"-") {
             (true, &bytes[1..])
-        } else if bytes.starts_with(&[b'+']) {
+        } else if bytes.starts_with(b"+") {
             (false, &bytes[1..])
         } else {
             (false, bytes)
@@ -327,7 +327,7 @@ impl ExternalSort {
     fn skip_leading_zeros<'a>(&self, bytes: &'a [u8]) -> &'a [u8] {
         let start = bytes.iter().position(|&b| b != b'0').unwrap_or(bytes.len());
         if start == bytes.len() {
-            &[b'0'] // All zeros, return single zero
+            b"0" // All zeros, return single zero
         } else {
             &bytes[start..]
         }
@@ -406,6 +406,7 @@ impl ExternalSort {
         }
 
         impl MergeItem {
+            #[allow(dead_code)]
             fn compare_numeric(&self, other: &str) -> Ordering {
                 // Fast path for simple integers
                 if let (Ok(a), Ok(b)) = (self.line.parse::<i64>(), other.parse::<i64>()) {

@@ -324,11 +324,11 @@ mod tests {
 
     #[test]
     fn test_simd_comparison() {
-        let a = b"hello world this is a test";
-        let b = b"hello world this is a different test";
+        let str_a = b"hello world this is a test";
+        let str_b = b"hello world this is a different test";
 
-        let result = SIMDCompare::compare_bytes_simd(a, b);
-        let expected = a.cmp(b);
+        let result = SIMDCompare::compare_bytes_simd(str_a, str_b);
+        let expected = str_a.cmp(str_b);
 
         assert_eq!(result, expected);
     }

@@ -151,7 +151,6 @@ impl SortError {
 }
 
 /// Convert io::Error to SortError with context (removed to avoid conflict with thiserror derive)
-
 /// Result type for sort operations
 pub type SortResult<T> = Result<T, SortError>;
 

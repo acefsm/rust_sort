@@ -86,7 +86,7 @@ impl CoreSort {
     fn check_stdin_sorted(&self) -> io::Result<()> {
         use std::io::BufRead;
         let stdin = std::io::stdin();
-        let mut reader = stdin.lock();
+        let reader = stdin.lock();
 
         let mut prev_line: Option<String> = None;
         let mut line_num = 0;
@@ -109,6 +109,7 @@ impl CoreSort {
     }
 
     /// Check if a file is sorted (old method for compatibility)
+    #[allow(dead_code)]
     fn check_file_sorted(&self, path: &Path) -> io::Result<bool> {
         match self.check_file_sorted_with_line(path)? {
             Ok(()) => Ok(true),
@@ -155,7 +156,7 @@ impl CoreSort {
     /// Sort data from stdin using streaming approach
     fn sort_stdin(&self) -> io::Result<()> {
         let stdin = std::io::stdin();
-        let mut file = stdin.lock();
+        let file = stdin.lock();
 
         // For stdin, we need to read into memory first
         let mut buffer = Vec::new();
@@ -643,7 +644,7 @@ impl CoreSort {
                 let bytes = sortable_line.line.as_bytes().to_vec();
                 line_to_indices
                     .entry(bytes)
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push(idx);
             }
         }
@@ -727,6 +728,7 @@ impl CoreSort {
     }
 
     /// Try string interning for datasets with many duplicates
+    #[allow(dead_code)]
     fn try_string_interning(&self, lines: &mut [SortableLine]) -> bool {
         // Check if we have enough duplicates to benefit from interning
         if lines.len() < 1000 {
@@ -772,7 +774,7 @@ impl CoreSort {
         indices.sort_unstable_by_key(|&(idx, _)| idx);
 
         // Reconstruct lines in sorted order
-        for (i, &(str_idx, orig_idx)) in indices.iter().enumerate() {
+        for (i, &(_str_idx, orig_idx)) in indices.iter().enumerate() {
             // Find the original line with this index
             for line in lines.iter() {
                 if line.original_index == orig_idx {
@@ -985,7 +987,8 @@ mod tests {
         };
 
         // Sort
-        let sorter = CoreSort::new(args);
+        let config = crate::config::SortConfig::default();
+        let sorter = CoreSort::new(args, config);
         sorter.sort()?;
 
         // Verify output
@@ -1013,7 +1016,8 @@ mod tests {
         };
 
         // Sort
-        let sorter = CoreSort::new(args);
+        let config = crate::config::SortConfig::default().with_mode(crate::config::SortMode::Numeric);
+        let sorter = CoreSort::new(args, config);
         sorter.sort()?;
 
         // Verify output

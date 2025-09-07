@@ -7,9 +7,13 @@ use std::arch::x86_64::*;
 
 /// Adaptive sorting algorithm that selects optimal strategy based on data patterns
 pub struct AdaptiveSort {
+    #[allow(dead_code)]
     enable_simd: bool,
+    #[allow(dead_code)]
     enable_adaptive: bool,
+    #[allow(dead_code)]
     enable_pattern_detection: bool,
+    #[allow(dead_code)]
     enable_compression: bool,
 }
 

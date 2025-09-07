@@ -470,6 +470,7 @@ impl Line {
     }
 
     /// Byte-level numeric comparison for complex numbers
+    #[allow(dead_code)]
     fn compare_numeric_bytes(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
@@ -652,7 +653,7 @@ impl ZeroCopyReader {
             self.buffer.extend_from_slice(&line_buf);
 
             // Remove trailing newline if present
-            let end_idx = if line_buf.ends_with(&[b'\n']) {
+            let end_idx = if line_buf.ends_with(b"\n") {
                 self.buffer.len() - 1
             } else {
                 self.buffer.len()
@@ -765,9 +766,9 @@ fn skip_whitespace(bytes: &[u8]) -> &[u8] {
 }
 
 fn extract_sign(bytes: &[u8]) -> (bool, &[u8]) {
-    if bytes.starts_with(&[b'-']) {
+    if bytes.starts_with(b"-") {
         (true, &bytes[1..])
-    } else if bytes.starts_with(&[b'+']) {
+    } else if bytes.starts_with(b"+") {
         (false, &bytes[1..])
     } else {
         (false, bytes)
@@ -833,7 +834,7 @@ fn compare_fractional_parts(a: &[u8], b: &[u8]) -> Ordering {
 fn skip_leading_zeros(bytes: &[u8]) -> &[u8] {
     let start = bytes.iter().position(|&b| b != b'0').unwrap_or(bytes.len());
     if start == bytes.len() {
-        &[b'0'] // All zeros, return single zero
+        b"0" // All zeros, return single zero
     } else {
         &bytes[start..]
     }

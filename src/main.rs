@@ -11,7 +11,7 @@ use std::process;
 use gnu_sort::{
     config::{SortConfig, SortConfigBuilder, SortMode},
     error::{SortError, SortResult},
-    sort, EXIT_SUCCESS,
+    sort,
 };
 
 fn main() {

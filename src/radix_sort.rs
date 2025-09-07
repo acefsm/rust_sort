@@ -259,7 +259,9 @@ impl RadixSort {
 
     /// Parallel radix sort implementation
     fn parallel_radix_sort_pairs(&self, values: &mut [(i64, usize)]) {
+        #[allow(dead_code)]
         const RADIX: usize = 256;
+        #[allow(dead_code)]
         const MAX_BITS: usize = 64;
 
         // Handle negative numbers by splitting and sorting separately
