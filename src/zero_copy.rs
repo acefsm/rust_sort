@@ -96,7 +96,7 @@ impl Line {
                     break;
                 }
             }
-            
+
             // Find the end of field 1 (first whitespace or end of line)
             for (i, &byte) in bytes[field_start..].iter().enumerate() {
                 if byte == b' ' || byte == b'\t' {
@@ -111,10 +111,10 @@ impl Line {
         let mut field_boundaries = Vec::new();
         let mut in_field = false;
         let mut field_start = 0;
-        
+
         for (i, &byte) in bytes.iter().enumerate() {
             let is_whitespace = byte == b' ' || byte == b'\t';
-            
+
             if !is_whitespace && !in_field {
                 // Starting a new field
                 field_start = i;
@@ -125,23 +125,23 @@ impl Line {
                 in_field = false;
             }
         }
-        
+
         // Handle case where line ends with a field (no trailing whitespace)
         if in_field {
             field_boundaries.push(field_start..bytes.len());
         }
-        
+
         if field_num > field_boundaries.len() {
             return None;
         }
-        
+
         let target_field = &field_boundaries[field_num - 1];
-        
+
         // For field 1, return just the field content
         if field_num == 1 {
             return Some(&bytes[target_field.clone()]);
         }
-        
+
         // For fields > 1, include the whitespace before the field
         // Find where the previous field ended
         let prev_field_end = if field_num > 1 {
@@ -149,7 +149,7 @@ impl Line {
         } else {
             0
         };
-        
+
         // The field includes whitespace from previous field end to current field end
         Some(&bytes[prev_field_end..target_field.end])
     }
@@ -374,16 +374,18 @@ impl Line {
                         let other_str = String::from_utf8_lossy(other_bytes);
                         let a_str = String::from_utf8_lossy(a);
                         let b_str = String::from_utf8_lossy(b);
-                        
+
                         // Convert Ordering to GNU sort style number
                         let cmp_val = match final_result {
                             Ordering::Greater => 1,
                             Ordering::Less => -1,
                             Ordering::Equal => 0,
                         };
-                        
-                        eprintln!("; k1=<{}>; k2=<{}>; s1=<{}>, s2=<{}>; cmp1={}", 
-                                 a_str, b_str, self_str, other_str, cmp_val);
+
+                        eprintln!(
+                            "; k1=<{}>; k2=<{}>; s1=<{}>, s2=<{}>; cmp1={}",
+                            a_str, b_str, self_str, other_str, cmp_val
+                        );
                     }
 
                     final_result
@@ -683,9 +685,7 @@ impl Line {
     fn filter_dictionary_order(&self, bytes: &[u8]) -> Vec<u8> {
         bytes
             .iter()
-            .filter(|&&b| {
-                b.is_ascii_alphanumeric() || b == b' ' || b == b'\t'
-            })
+            .filter(|&&b| b.is_ascii_alphanumeric() || b == b' ' || b == b'\t')
             .copied()
             .collect()
     }
@@ -698,7 +698,7 @@ impl Line {
         fn month_value(bytes: &[u8]) -> u8 {
             // Convert to uppercase for case-insensitive comparison
             let upper_bytes: Vec<u8> = bytes.iter().map(|b| b.to_ascii_uppercase()).collect();
-            
+
             // Try to match month abbreviations (GNU sort standard)
             match upper_bytes.as_slice() {
                 b"JAN" | b"JANUARY" => 1,
@@ -738,41 +738,41 @@ impl Line {
     pub fn compare_version(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         // Convert to strings for version parsing
         let a_str = String::from_utf8_lossy(a_bytes);
         let b_str = String::from_utf8_lossy(b_bytes);
-        
+
         Self::compare_version_strings(&a_str, &b_str)
     }
-    
+
     /// Compare two version strings (like "1.2.3" vs "1.10.1")
     fn compare_version_strings(a: &str, b: &str) -> Ordering {
         // Split by non-alphanumeric characters and compare each component
         let a_parts = Self::version_tokenize(a);
         let b_parts = Self::version_tokenize(b);
-        
+
         for (a_part, b_part) in a_parts.iter().zip(b_parts.iter()) {
             match Self::compare_version_component(a_part, b_part) {
                 Ordering::Equal => continue,
                 other => return other,
             }
         }
-        
+
         // If all compared parts are equal, longer version wins
         a_parts.len().cmp(&b_parts.len())
     }
-    
+
     /// Tokenize version string into alphanumeric components
     fn version_tokenize(s: &str) -> Vec<String> {
         let mut tokens = Vec::new();
         let mut current = String::new();
         let mut in_alpha = false;
-        
+
         for ch in s.chars() {
             let is_alpha = ch.is_alphabetic();
             let is_digit = ch.is_ascii_digit();
-            
+
             if is_alpha || is_digit {
                 if in_alpha != is_alpha && !current.is_empty() {
                     tokens.push(current);
@@ -787,42 +787,45 @@ impl Line {
                 }
             }
         }
-        
+
         if !current.is_empty() {
             tokens.push(current);
         }
-        
+
         tokens
     }
-    
+
     /// Compare individual version components (numeric or alphabetic)
     fn compare_version_component(a: &str, b: &str) -> Ordering {
         // Check if both are numeric
         if let (Ok(a_num), Ok(b_num)) = (a.parse::<u64>(), b.parse::<u64>()) {
             return a_num.cmp(&b_num);
         }
-        
+
         // Check if one is numeric and other is not (numeric comes first)
-        match (a.chars().all(|c| c.is_ascii_digit()), b.chars().all(|c| c.is_ascii_digit())) {
+        match (
+            a.chars().all(|c| c.is_ascii_digit()),
+            b.chars().all(|c| c.is_ascii_digit()),
+        ) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => a.cmp(b), // Both non-numeric, lexicographic comparison
         }
     }
 
-    /// Human numeric comparison (GNU sort -h compatible) 
+    /// Human numeric comparison (GNU sort -h compatible)
     pub fn compare_human_numeric(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
-        
+
         let a_string = String::from_utf8_lossy(a_bytes);
         let b_string = String::from_utf8_lossy(b_bytes);
         let a_str = a_string.trim();
         let b_str = b_string.trim();
-        
+
         let a_val = Self::parse_human_numeric(a_str);
         let b_val = Self::parse_human_numeric(b_str);
-        
+
         match (a_val, b_val) {
             (Some(a), Some(b)) => {
                 match a.partial_cmp(&b) {
@@ -830,21 +833,21 @@ impl Line {
                     None => a_str.cmp(b_str), // Handle NaN case
                 }
             }
-            (Some(_), None) => Ordering::Less,   // Numbers before non-numbers
+            (Some(_), None) => Ordering::Less, // Numbers before non-numbers
             (None, Some(_)) => Ordering::Greater, // Numbers before non-numbers
-            (None, None) => a_str.cmp(b_str),    // Both non-numeric
+            (None, None) => a_str.cmp(b_str),  // Both non-numeric
         }
     }
-    
+
     /// Parse human-readable numeric value (like "1K", "2.5M", "1G")
     fn parse_human_numeric(s: &str) -> Option<f64> {
         if s.is_empty() {
             return None;
         }
-        
+
         let s = s.trim();
         let last_char = s.chars().last()?;
-        
+
         let multiplier = match last_char.to_ascii_uppercase() {
             'K' => 1024.0,
             'M' => 1024.0 * 1024.0,
@@ -856,11 +859,11 @@ impl Line {
                 return s.parse::<f64>().ok();
             }
         };
-        
+
         // Parse the numeric part (without the suffix)
-        let numeric_part = s[..s.len()-1].trim();
+        let numeric_part = s[..s.len() - 1].trim();
         let value = numeric_part.parse::<f64>().ok()?;
-        
+
         Some(value * multiplier)
     }
 }

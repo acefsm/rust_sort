@@ -33,14 +33,14 @@ impl CoreSort {
             // Calculate available memory (approximate)
             let available_memory = 17179869184u64; // ~16GB default like GNU sort
             eprintln!("Memory to be used for sorting: {}", available_memory);
-            
+
             // Show number of CPUs
             let num_cpus = num_cpus::get();
             eprintln!("Number of CPUs: {}", num_cpus);
-            
+
             // Show locale information
             eprintln!("Using collate rules of C locale");
-            
+
             // Sort method info
             eprintln!("Byte sort is used");
             eprintln!("sort_method=mergesort");
