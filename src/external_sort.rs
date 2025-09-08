@@ -24,9 +24,22 @@ pub struct ExternalSort {
 
 impl ExternalSort {
     /// Create new external sorter with memory limit
-    pub fn new(max_memory_mb: usize, parallel: bool, use_radix: bool) -> io::Result<Self> {
+    pub fn new(
+        max_memory_mb: usize,
+        parallel: bool,
+        use_radix: bool,
+        temp_dir_path: Option<&str>,
+    ) -> io::Result<Self> {
         let max_chunk_size = max_memory_mb * 1024 * 1024; // Convert MB to bytes
-        let temp_dir = tempfile::tempdir()?;
+        
+        // Create temp directory in specified location or use default
+        let temp_dir = if let Some(path) = temp_dir_path {
+            tempfile::tempdir_in(path)?
+        } else if let Ok(tmpdir) = std::env::var("TMPDIR") {
+            tempfile::tempdir_in(tmpdir)?
+        } else {
+            tempfile::tempdir()?
+        };
 
         Ok(Self {
             max_chunk_size,
@@ -157,7 +170,7 @@ impl ExternalSort {
             }
 
             total_size += line.len();
-            lines.push(line.clone());
+            lines.push(std::mem::take(&mut line));
         }
 
         Ok((lines, false))
@@ -236,9 +249,22 @@ impl ExternalSort {
         }
 
         // Reconstruct lines in sorted order
-        let original_lines = lines.to_vec();
-        for (i, (_, original_idx)) in values.into_iter().enumerate() {
-            lines[i] = original_lines[original_idx].clone();
+        // Create a permutation vector
+        let permutation: Vec<usize> = values.into_iter().map(|(_, idx)| idx).collect();
+        
+        // Apply permutation efficiently without unnecessary cloning
+        let mut sorted = Vec::with_capacity(lines.len());
+        for _ in 0..lines.len() {
+            sorted.push(String::new());
+        }
+        
+        for (new_idx, &old_idx) in permutation.iter().enumerate() {
+            sorted[new_idx] = std::mem::take(&mut lines[old_idx]);
+        }
+        
+        // Replace original with sorted
+        for (i, line) in sorted.into_iter().enumerate() {
+            lines[i] = line;
         }
 
         Ok(())
@@ -468,7 +494,7 @@ mod tests {
         fs::write(&input_file, "3\n1\n4\n1\n5\n9\n2\n6\n")?;
 
         // Sort with external sorter
-        let sorter = ExternalSort::new(1, false, true)?; // 1MB limit
+        let sorter = ExternalSort::new(1, false, true, None)?; // 1MB limit
         sorter.sort_file(&input_file, &output_file, true)?;
 
         // Verify output

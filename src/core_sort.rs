@@ -249,11 +249,20 @@ impl CoreSort {
 
         // Calculate memory limit optimized for large files
         let available_memory = Self::get_available_memory_mb();
-        let memory_limit = if file_size > 200 * 1024 * 1024 {
-            // Files > 200MB
-            (available_memory / 4).clamp(128, 256) // Use 25% RAM, max 256MB
+        
+        // For systems without swap (or low memory), be more conservative
+        // Leave at least 512MB for system operations
+        let safe_memory = available_memory.saturating_sub(512);
+        
+        let memory_limit = if file_size > 1024 * 1024 * 1024 {
+            // Files > 1GB: use up to 50% of safe memory
+            (safe_memory / 2).max(256) // At least 256MB
+        } else if file_size > 200 * 1024 * 1024 {
+            // Files > 200MB: use up to 60% of safe memory  
+            (safe_memory * 3 / 5).max(128) // At least 128MB
         } else {
-            (available_memory / 3).clamp(64, 384) // Use 33% RAM, max 384MB
+            // Smaller files: use up to 75% of safe memory
+            (safe_memory * 3 / 4).max(64) // At least 64MB
         };
 
         // Create external sorter
@@ -261,6 +270,7 @@ impl CoreSort {
             memory_limit,
             num_cpus::get() > 1, // Use parallel processing if multiple cores available
             self.args.numeric_sort,
+            self.config.temp_dir.as_deref(),
         )?;
 
         // Determine output path
@@ -319,7 +329,13 @@ impl CoreSort {
 
     /// Sort multiple files using multi-threaded approach
     fn sort_multiple_files(&self, files: &[String]) -> io::Result<()> {
-        let temp_dir = tempfile::tempdir()?;
+        let temp_dir = if let Some(ref path) = self.config.temp_dir {
+            tempfile::tempdir_in(path)?
+        } else if let Ok(tmpdir) = std::env::var("TMPDIR") {
+            tempfile::tempdir_in(tmpdir)?
+        } else {
+            tempfile::tempdir()?
+        };
         let mut sorted_chunks = Vec::new();
 
         // Process each file in parallel
