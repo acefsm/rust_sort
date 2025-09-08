@@ -38,6 +38,8 @@ pub fn sort(config: &SortConfig, input_files: &[String]) -> SortResult<i32> {
         reverse: config.reverse,
         numeric_sort: matches!(config.mode, crate::config::SortMode::Numeric),
         general_numeric_sort: matches!(config.mode, crate::config::SortMode::GeneralNumeric),
+        human_numeric_sort: matches!(config.mode, crate::config::SortMode::HumanNumeric),
+        version_sort: matches!(config.mode, crate::config::SortMode::Version),
         random_sort: matches!(config.mode, crate::config::SortMode::Random),
         ignore_case: config.ignore_case,
         unique: config.unique,

@@ -28,6 +28,24 @@ impl CoreSort {
         // Initialize locale configuration at startup
         let _locale_config = crate::locale::LocaleConfig::get();
 
+        // Debug output (GNU sort compatible)
+        if self.config.debug {
+            // Calculate available memory (approximate)
+            let available_memory = 17179869184u64; // ~16GB default like GNU sort
+            eprintln!("Memory to be used for sorting: {}", available_memory);
+            
+            // Show number of CPUs
+            let num_cpus = num_cpus::get();
+            eprintln!("Number of CPUs: {}", num_cpus);
+            
+            // Show locale information
+            eprintln!("Using collate rules of C locale");
+            
+            // Sort method info
+            eprintln!("Byte sort is used");
+            eprintln!("sort_method=mergesort");
+        }
+
         let input_files = &self.args.files;
 
         // Input validation

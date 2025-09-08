@@ -6,6 +6,8 @@ pub struct SortArgs {
     pub reverse: bool,
     pub numeric_sort: bool,
     pub general_numeric_sort: bool, // Added for -g/--general-numeric-sort
+    pub human_numeric_sort: bool,   // Added for -h/--human-numeric-sort
+    pub version_sort: bool,         // Added for -V/--version-sort
     pub random_sort: bool,          // Added for --random-sort support
     pub ignore_case: bool,
     pub unique: bool,

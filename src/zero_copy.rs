@@ -80,40 +80,78 @@ impl Line {
     }
 
     /// Extract field by whitespace (default behavior when no separator is specified)
+    /// Fields include leading whitespace from previous field separator (GNU sort behavior)
     fn extract_field_by_whitespace<'a>(
         &self,
         bytes: &'a [u8],
         field_num: usize,
     ) -> Option<&'a [u8]> {
-        let mut field_count = 0;
-        let mut in_field = false;
+        if field_num == 1 {
+            // Special case: field 1 starts at beginning of line
+            // Skip leading whitespace to find start of field 1
+            let mut field_start = 0;
+            for (i, &byte) in bytes.iter().enumerate() {
+                if byte != b' ' && byte != b'\t' {
+                    field_start = i;
+                    break;
+                }
+            }
+            
+            // Find the end of field 1 (first whitespace or end of line)
+            for (i, &byte) in bytes[field_start..].iter().enumerate() {
+                if byte == b' ' || byte == b'\t' {
+                    return Some(&bytes[field_start..field_start + i]);
+                }
+            }
+            return Some(&bytes[field_start..]); // Entire remaining line is field 1
+        }
 
+        // For fields > 1, use a different approach
+        // First, skip initial whitespace and find all field boundaries
+        let mut field_boundaries = Vec::new();
+        let mut in_field = false;
+        let mut field_start = 0;
+        
         for (i, &byte) in bytes.iter().enumerate() {
             let is_whitespace = byte == b' ' || byte == b'\t';
-
+            
             if !is_whitespace && !in_field {
                 // Starting a new field
-                field_count += 1;
+                field_start = i;
                 in_field = true;
-
-                if field_count == field_num {
-                    // Found the start of our target field
-                    // Now find where it ends
-                    for (j, &b) in bytes[i..].iter().enumerate() {
-                        if b == b' ' || b == b'\t' {
-                            return Some(&bytes[i..i + j]);
-                        }
-                    }
-                    // Field goes to end of line
-                    return Some(&bytes[i..]);
-                }
             } else if is_whitespace && in_field {
                 // Ending a field
+                field_boundaries.push(field_start..i);
                 in_field = false;
             }
         }
-
-        None
+        
+        // Handle case where line ends with a field (no trailing whitespace)
+        if in_field {
+            field_boundaries.push(field_start..bytes.len());
+        }
+        
+        if field_num > field_boundaries.len() {
+            return None;
+        }
+        
+        let target_field = &field_boundaries[field_num - 1];
+        
+        // For field 1, return just the field content
+        if field_num == 1 {
+            return Some(&bytes[target_field.clone()]);
+        }
+        
+        // For fields > 1, include the whitespace before the field
+        // Find where the previous field ended
+        let prev_field_end = if field_num > 1 {
+            field_boundaries[field_num - 2].end
+        } else {
+            0
+        };
+        
+        // The field includes whitespace from previous field end to current field end
+        Some(&bytes[prev_field_end..target_field.end])
     }
 
     /// Extract a key region from the line based on SortKey specification
@@ -306,14 +344,15 @@ impl Line {
                     } else if key.options.numeric {
                         a_line.compare_numeric(&b_line)
                     } else if key.options.month {
-                        // Month comparison not fully implemented
-                        a_line.compare_lexicographic(&b_line)
+                        a_line.compare_month(&b_line)
                     } else if key.options.version {
-                        // Version comparison not fully implemented
-                        a_line.compare_lexicographic(&b_line)
+                        a_line.compare_version(&b_line)
                     } else if key.options.human_numeric {
-                        // Human numeric not fully implemented
-                        a_line.compare_lexicographic(&b_line)
+                        a_line.compare_human_numeric(&b_line)
+                    } else if key.options.dictionary_order && key.options.ignore_case {
+                        a_line.compare_dictionary_order_ignore_case(&b_line)
+                    } else if key.options.dictionary_order {
+                        a_line.compare_dictionary_order(&b_line)
                     } else if key.options.ignore_case {
                         a_line.compare_ignore_case(&b_line)
                     } else {
@@ -321,11 +360,33 @@ impl Line {
                     };
 
                     // Apply reverse if specified for this key
-                    if key.options.reverse {
+                    let final_result = if key.options.reverse {
                         result.reverse()
                     } else {
                         result
+                    };
+
+                    // Debug output if enabled (GNU sort compatible)
+                    if config.debug {
+                        let self_bytes = unsafe { self.as_bytes() };
+                        let other_bytes = unsafe { other.as_bytes() };
+                        let self_str = String::from_utf8_lossy(self_bytes);
+                        let other_str = String::from_utf8_lossy(other_bytes);
+                        let a_str = String::from_utf8_lossy(a);
+                        let b_str = String::from_utf8_lossy(b);
+                        
+                        // Convert Ordering to GNU sort style number
+                        let cmp_val = match final_result {
+                            Ordering::Greater => 1,
+                            Ordering::Less => -1,
+                            Ordering::Equal => 0,
+                        };
+                        
+                        eprintln!("; k1=<{}>; k2=<{}>; s1=<{}>, s2=<{}>; cmp1={}", 
+                                 a_str, b_str, self_str, other_str, cmp_val);
                     }
+
+                    final_result
                 }
                 (None, Some(_)) => Ordering::Less,
                 (Some(_), None) => Ordering::Greater,
@@ -355,14 +416,28 @@ impl Line {
         let cmp = match config.mode {
             crate::config::SortMode::GeneralNumeric => self.compare_general_numeric(other),
             crate::config::SortMode::Numeric => self.compare_numeric(other),
+            crate::config::SortMode::Month => self.compare_month(other),
+            crate::config::SortMode::Version => self.compare_version(other),
+            crate::config::SortMode::HumanNumeric => self.compare_human_numeric(other),
             crate::config::SortMode::Lexicographic => {
-                if config.ignore_case {
+                if config.dictionary_order && config.ignore_case {
+                    self.compare_dictionary_order_ignore_case(other)
+                } else if config.dictionary_order {
+                    self.compare_dictionary_order(other)
+                } else if config.ignore_case {
                     self.compare_ignore_case(other)
                 } else {
                     self.compare_lexicographic(other)
                 }
             }
-            _ => self.compare_lexicographic(other), // Default for unimplemented modes
+            _ => {
+                // For other modes, also check dictionary_order flag
+                if config.dictionary_order {
+                    self.compare_dictionary_order(other)
+                } else {
+                    self.compare_lexicographic(other)
+                }
+            }
         };
 
         if config.reverse {
@@ -567,6 +642,226 @@ impl Line {
             // Use SIMD for maximum performance when locale is not enabled
             SIMDCompare::compare_bytes_simd(a_bytes, b_bytes)
         }
+    }
+
+    /// Dictionary order comparison (only alphanumeric characters and blanks)
+    pub fn compare_dictionary_order(&self, other: &Line) -> Ordering {
+        let a_bytes = unsafe { self.as_bytes() };
+        let b_bytes = unsafe { other.as_bytes() };
+
+        let a_filtered = self.filter_dictionary_order(a_bytes);
+        let b_filtered = self.filter_dictionary_order(b_bytes);
+
+        // Use locale-aware comparison if enabled
+        if locale::LocaleConfig::is_enabled() {
+            locale::smart_compare(&a_filtered, &b_filtered, false)
+        } else {
+            // Use SIMD for maximum performance when locale is not enabled
+            SIMDCompare::compare_bytes_simd(&a_filtered, &b_filtered)
+        }
+    }
+
+    /// Dictionary order with case-insensitive comparison
+    pub fn compare_dictionary_order_ignore_case(&self, other: &Line) -> Ordering {
+        let a_bytes = unsafe { self.as_bytes() };
+        let b_bytes = unsafe { other.as_bytes() };
+
+        let a_filtered = self.filter_dictionary_order(a_bytes);
+        let b_filtered = self.filter_dictionary_order(b_bytes);
+
+        // Use locale-aware comparison if enabled
+        if locale::LocaleConfig::is_enabled() {
+            locale::smart_compare(&a_filtered, &b_filtered, true)
+        } else {
+            // Use SIMD for performance boost when locale is not enabled
+            SIMDCompare::compare_case_insensitive_simd(&a_filtered, &b_filtered)
+        }
+    }
+
+    /// Filter bytes to keep only alphanumeric characters and blanks (spaces/tabs)
+    /// This implements GNU sort's dictionary order (-d flag)
+    fn filter_dictionary_order(&self, bytes: &[u8]) -> Vec<u8> {
+        bytes
+            .iter()
+            .filter(|&&b| {
+                b.is_ascii_alphanumeric() || b == b' ' || b == b'\t'
+            })
+            .copied()
+            .collect()
+    }
+
+    /// Month-aware comparison (GNU sort compatible)
+    pub fn compare_month(&self, other: &Line) -> Ordering {
+        let a_bytes = unsafe { self.as_bytes() };
+        let b_bytes = unsafe { other.as_bytes() };
+
+        fn month_value(bytes: &[u8]) -> u8 {
+            // Convert to uppercase for case-insensitive comparison
+            let upper_bytes: Vec<u8> = bytes.iter().map(|b| b.to_ascii_uppercase()).collect();
+            
+            // Try to match month abbreviations (GNU sort standard)
+            match upper_bytes.as_slice() {
+                b"JAN" | b"JANUARY" => 1,
+                b"FEB" | b"FEBRUARY" => 2,
+                b"MAR" | b"MARCH" => 3,
+                b"APR" | b"APRIL" => 4,
+                b"MAY" => 5,
+                b"JUN" | b"JUNE" => 6,
+                b"JUL" | b"JULY" => 7,
+                b"AUG" | b"AUGUST" => 8,
+                b"SEP" | b"SEPTEMBER" => 9,
+                b"OCT" | b"OCTOBER" => 10,
+                b"NOV" | b"NOVEMBER" => 11,
+                b"DEC" | b"DECEMBER" => 12,
+                _ => 0, // Unknown month, will be compared lexicographically
+            }
+        }
+
+        let a_month = month_value(a_bytes);
+        let b_month = month_value(b_bytes);
+
+        match (a_month, b_month) {
+            // Both are recognized months - compare by month order
+            (a, b) if a > 0 && b > 0 => a.cmp(&b),
+            // Only a is a month - non-months come before months (GNU sort behavior)
+            (a, 0) if a > 0 => Ordering::Greater,
+            // Only b is a month - non-months come before months (GNU sort behavior)
+            (0, b) if b > 0 => Ordering::Less,
+            // Neither is a month - fall back to lexicographic comparison
+            (0, 0) => self.compare_lexicographic(other),
+            // Catch-all for any other cases (should not occur, but satisfies compiler)
+            _ => self.compare_lexicographic(other),
+        }
+    }
+
+    /// Version-aware comparison (GNU sort -V compatible)
+    pub fn compare_version(&self, other: &Line) -> Ordering {
+        let a_bytes = unsafe { self.as_bytes() };
+        let b_bytes = unsafe { other.as_bytes() };
+        
+        // Convert to strings for version parsing
+        let a_str = String::from_utf8_lossy(a_bytes);
+        let b_str = String::from_utf8_lossy(b_bytes);
+        
+        Self::compare_version_strings(&a_str, &b_str)
+    }
+    
+    /// Compare two version strings (like "1.2.3" vs "1.10.1")
+    fn compare_version_strings(a: &str, b: &str) -> Ordering {
+        // Split by non-alphanumeric characters and compare each component
+        let a_parts = Self::version_tokenize(a);
+        let b_parts = Self::version_tokenize(b);
+        
+        for (a_part, b_part) in a_parts.iter().zip(b_parts.iter()) {
+            match Self::compare_version_component(a_part, b_part) {
+                Ordering::Equal => continue,
+                other => return other,
+            }
+        }
+        
+        // If all compared parts are equal, longer version wins
+        a_parts.len().cmp(&b_parts.len())
+    }
+    
+    /// Tokenize version string into alphanumeric components
+    fn version_tokenize(s: &str) -> Vec<String> {
+        let mut tokens = Vec::new();
+        let mut current = String::new();
+        let mut in_alpha = false;
+        
+        for ch in s.chars() {
+            let is_alpha = ch.is_alphabetic();
+            let is_digit = ch.is_ascii_digit();
+            
+            if is_alpha || is_digit {
+                if in_alpha != is_alpha && !current.is_empty() {
+                    tokens.push(current);
+                    current = String::new();
+                }
+                current.push(ch);
+                in_alpha = is_alpha;
+            } else {
+                if !current.is_empty() {
+                    tokens.push(current);
+                    current = String::new();
+                }
+            }
+        }
+        
+        if !current.is_empty() {
+            tokens.push(current);
+        }
+        
+        tokens
+    }
+    
+    /// Compare individual version components (numeric or alphabetic)
+    fn compare_version_component(a: &str, b: &str) -> Ordering {
+        // Check if both are numeric
+        if let (Ok(a_num), Ok(b_num)) = (a.parse::<u64>(), b.parse::<u64>()) {
+            return a_num.cmp(&b_num);
+        }
+        
+        // Check if one is numeric and other is not (numeric comes first)
+        match (a.chars().all(|c| c.is_ascii_digit()), b.chars().all(|c| c.is_ascii_digit())) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => a.cmp(b), // Both non-numeric, lexicographic comparison
+        }
+    }
+
+    /// Human numeric comparison (GNU sort -h compatible) 
+    pub fn compare_human_numeric(&self, other: &Line) -> Ordering {
+        let a_bytes = unsafe { self.as_bytes() };
+        let b_bytes = unsafe { other.as_bytes() };
+        
+        let a_string = String::from_utf8_lossy(a_bytes);
+        let b_string = String::from_utf8_lossy(b_bytes);
+        let a_str = a_string.trim();
+        let b_str = b_string.trim();
+        
+        let a_val = Self::parse_human_numeric(a_str);
+        let b_val = Self::parse_human_numeric(b_str);
+        
+        match (a_val, b_val) {
+            (Some(a), Some(b)) => {
+                match a.partial_cmp(&b) {
+                    Some(ord) => ord,
+                    None => a_str.cmp(b_str), // Handle NaN case
+                }
+            }
+            (Some(_), None) => Ordering::Less,   // Numbers before non-numbers
+            (None, Some(_)) => Ordering::Greater, // Numbers before non-numbers
+            (None, None) => a_str.cmp(b_str),    // Both non-numeric
+        }
+    }
+    
+    /// Parse human-readable numeric value (like "1K", "2.5M", "1G")
+    fn parse_human_numeric(s: &str) -> Option<f64> {
+        if s.is_empty() {
+            return None;
+        }
+        
+        let s = s.trim();
+        let last_char = s.chars().last()?;
+        
+        let multiplier = match last_char.to_ascii_uppercase() {
+            'K' => 1024.0,
+            'M' => 1024.0 * 1024.0,
+            'G' => 1024.0 * 1024.0 * 1024.0,
+            'T' => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+            'P' => 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0,
+            _ => {
+                // No suffix, parse as regular number
+                return s.parse::<f64>().ok();
+            }
+        };
+        
+        // Parse the numeric part (without the suffix)
+        let numeric_part = s[..s.len()-1].trim();
+        let value = numeric_part.parse::<f64>().ok()?;
+        
+        Some(value * multiplier)
     }
 }
 
