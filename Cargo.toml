@@ -1,14 +1,14 @@
 [package]
 name = "gnu-sort"
 version = "1.0.2"
-edition = "2025"
+edition = "2021"
 rust-version = "1.70.0"
-authors = ["Arthur <mutltistream@gmail.com>"]
+authors = ["Arthur <multistream@gmail.com>"]
 description = "High-performance Rust implementation of GNU sort with zero-copy operations, SIMD optimization, and parallel processing"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/acefsm/rust_sort"
 homepage = "https://github.com/acefsm/rust_sort"
-documentation = "https://docs.rs/rus_sort"
+documentation = "https://docs.rs/gnu-sort"
 keywords = ["sorting", "gnu", "coreutils", "performance", "cli"]
 categories = ["command-line-utilities", "algorithms"]
 readme = "README.md"
