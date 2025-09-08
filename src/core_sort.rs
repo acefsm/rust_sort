@@ -249,16 +249,16 @@ impl CoreSort {
 
         // Calculate memory limit optimized for large files
         let available_memory = Self::get_available_memory_mb();
-        
+
         // For systems without swap (or low memory), be more conservative
         // Leave at least 512MB for system operations
         let safe_memory = available_memory.saturating_sub(512);
-        
+
         let memory_limit = if file_size > 1024 * 1024 * 1024 {
             // Files > 1GB: use up to 50% of safe memory
             (safe_memory / 2).max(256) // At least 256MB
         } else if file_size > 200 * 1024 * 1024 {
-            // Files > 200MB: use up to 60% of safe memory  
+            // Files > 200MB: use up to 60% of safe memory
             (safe_memory * 3 / 5).max(128) // At least 128MB
         } else {
             // Smaller files: use up to 75% of safe memory

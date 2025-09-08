@@ -31,7 +31,7 @@ impl ExternalSort {
         temp_dir_path: Option<&str>,
     ) -> io::Result<Self> {
         let max_chunk_size = max_memory_mb * 1024 * 1024; // Convert MB to bytes
-        
+
         // Create temp directory in specified location or use default
         let temp_dir = if let Some(path) = temp_dir_path {
             tempfile::tempdir_in(path)?
@@ -251,17 +251,17 @@ impl ExternalSort {
         // Reconstruct lines in sorted order
         // Create a permutation vector
         let permutation: Vec<usize> = values.into_iter().map(|(_, idx)| idx).collect();
-        
+
         // Apply permutation efficiently without unnecessary cloning
         let mut sorted = Vec::with_capacity(lines.len());
         for _ in 0..lines.len() {
             sorted.push(String::new());
         }
-        
+
         for (new_idx, &old_idx) in permutation.iter().enumerate() {
             sorted[new_idx] = std::mem::take(&mut lines[old_idx]);
         }
-        
+
         // Replace original with sorted
         for (i, line) in sorted.into_iter().enumerate() {
             lines[i] = line;
