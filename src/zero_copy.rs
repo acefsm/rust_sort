@@ -382,10 +382,7 @@ impl Line {
                             Ordering::Equal => 0,
                         };
 
-                        eprintln!(
-                            "; k1=<{}>; k2=<{}>; s1=<{}>, s2=<{}>; cmp1={}",
-                            a_str, b_str, self_str, other_str, cmp_val
-                        );
+                        eprintln!("; k1=<{a_str}>; k2=<{b_str}>; s1=<{self_str}>, s2=<{other_str}>; cmp1={cmp_val}");
                     }
 
                     final_result
@@ -780,11 +777,9 @@ impl Line {
                 }
                 current.push(ch);
                 in_alpha = is_alpha;
-            } else {
-                if !current.is_empty() {
-                    tokens.push(current);
-                    current = String::new();
-                }
+            } else if !current.is_empty() {
+                tokens.push(current);
+                current = String::new();
             }
         }
 

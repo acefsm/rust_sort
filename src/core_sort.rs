@@ -32,11 +32,11 @@ impl CoreSort {
         if self.config.debug {
             // Calculate available memory (approximate)
             let available_memory = 17179869184u64; // ~16GB default like GNU sort
-            eprintln!("Memory to be used for sorting: {}", available_memory);
+            eprintln!("Memory to be used for sorting: {available_memory}");
 
             // Show number of CPUs
             let num_cpus = num_cpus::get();
-            eprintln!("Number of CPUs: {}", num_cpus);
+            eprintln!("Number of CPUs: {num_cpus}");
 
             // Show locale information
             eprintln!("Using collate rules of C locale");
