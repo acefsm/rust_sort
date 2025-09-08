@@ -1,0 +1,16 @@
+#!/bin/sh
+# Pre-commit hook for rust-sort project
+# This hook runs all necessary checks before allowing a commit
+
+echo "Running pre-commit checks..."
+
+# Run all checks via Makefile
+make check
+
+if [ $? -ne 0 ]; then
+    echo "❌ Pre-commit checks failed! Please fix the issues above."
+    exit 1
+fi
+
+echo "✅ All pre-commit checks passed!"
+exit 0
