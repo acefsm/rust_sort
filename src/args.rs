@@ -9,6 +9,7 @@ pub struct SortArgs {
     pub human_numeric_sort: bool,   // Added for -h/--human-numeric-sort
     pub version_sort: bool,         // Added for -V/--version-sort
     pub random_sort: bool,          // Added for --random-sort support
+    pub random_seed: Option<u64>,   // Seed for random sort
     pub ignore_case: bool,
     pub unique: bool,
     pub stable: bool,

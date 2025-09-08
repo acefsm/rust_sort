@@ -6,11 +6,14 @@ use crate::hash_sort::HashSort;
 use crate::radix_sort::RadixSort;
 use crate::zero_copy::{Line, MappedFile, ZeroCopyReader};
 use crossbeam_channel::{bounded, Receiver, Sender};
+use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::thread;
 
 /// Core sort implementation using zero-copy architecture
@@ -22,6 +25,122 @@ pub struct CoreSort {
 impl CoreSort {
     pub fn new(args: SortArgs, config: SortConfig) -> Self {
         Self { args, config }
+    }
+
+    /// Compare two lines using cached data - optimized for hot path
+    #[inline]
+    fn compare_with_cache(
+        &self,
+        a: &SortableLine,
+        b: &SortableLine,
+        cache: &ComparisonCache,
+    ) -> Ordering {
+        // Fast path for common case - direct line comparison
+        if !self.args.numeric_sort && !self.config.ignore_case && !self.args.random_sort {
+            return a.line.compare_with_keys(
+                &b.line,
+                &self.config.keys,
+                self.config.field_separator,
+                &self.config,
+            );
+        }
+
+        // If numeric sort, use cached numeric values
+        if self.args.numeric_sort {
+            if let (Some(a_num), Some(b_num)) = (
+                cache
+                    .entries
+                    .get(a.original_index)
+                    .and_then(|e| e.numeric_value),
+                cache
+                    .entries
+                    .get(b.original_index)
+                    .and_then(|e| e.numeric_value),
+            ) {
+                let cmp = if a_num.is_nan() && b_num.is_nan() {
+                    Ordering::Equal
+                } else if a_num.is_nan() {
+                    Ordering::Greater
+                } else if b_num.is_nan() {
+                    Ordering::Less
+                } else {
+                    a_num.partial_cmp(&b_num).unwrap_or(Ordering::Equal)
+                };
+
+                return if self.args.reverse {
+                    cmp.reverse()
+                } else {
+                    cmp
+                };
+            }
+        }
+
+        // If case-insensitive, use cached folded bytes
+        if self.config.ignore_case {
+            if let (Some(a_folded), Some(b_folded)) = (
+                cache
+                    .entries
+                    .get(a.original_index)
+                    .and_then(|e| e.folded_bytes.as_ref()),
+                cache
+                    .entries
+                    .get(b.original_index)
+                    .and_then(|e| e.folded_bytes.as_ref()),
+            ) {
+                let cmp = a_folded.cmp(b_folded);
+                return if self.args.reverse {
+                    cmp.reverse()
+                } else {
+                    cmp
+                };
+            }
+        }
+
+        // If random sort, use cached hash values
+        if self.args.random_sort {
+            if let (Some(a_hash), Some(b_hash)) = (
+                cache
+                    .entries
+                    .get(a.original_index)
+                    .and_then(|e| e.hash_value),
+                cache
+                    .entries
+                    .get(b.original_index)
+                    .and_then(|e| e.hash_value),
+            ) {
+                let cmp = a_hash.cmp(&b_hash);
+                return if self.args.reverse {
+                    cmp.reverse()
+                } else {
+                    cmp
+                };
+            }
+        }
+
+        // Fall back to regular comparison
+        a.line.compare_with_keys(
+            &b.line,
+            &self.config.keys,
+            self.config.field_separator,
+            &self.config,
+        )
+    }
+
+    /// Fast comparison for direct Line sorting with index tracking
+    #[inline]
+    fn compare_lines_direct(&self, a_line: &Line, b_line: &Line) -> Ordering {
+        let cmp = a_line.compare_with_keys(
+            b_line,
+            &self.config.keys,
+            self.config.field_separator,
+            &self.config,
+        );
+
+        if self.args.reverse {
+            cmp.reverse()
+        } else {
+            cmp
+        }
     }
 
     pub fn sort(&self) -> io::Result<()> {
@@ -225,7 +344,63 @@ impl CoreSort {
         let mapped_file = MappedFile::new(path)?;
         let lines = mapped_file.lines();
 
-        // Convert to sortable format
+        // Optimize for unique sort without stable - no SortableLine wrapper needed
+        if self.args.unique && !self.args.stable {
+            let mut lines_vec: Vec<Line> = lines.to_vec();
+            self.sort_lines_direct(&mut lines_vec);
+
+            // Dedup in-place after sorting
+            lines_vec.dedup_by(|a, b| {
+                if self.config.keys.is_empty() {
+                    unsafe { a.as_bytes() == b.as_bytes() }
+                } else {
+                    a.compare_with_keys(
+                        b,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    ) == Ordering::Equal
+                }
+            });
+
+            // Write deduplicated output
+            return self.write_output_direct(&lines_vec);
+        }
+
+        // For non-stable, non-unique sorts, also avoid wrapper
+        if !self.args.stable && !self.args.unique {
+            let mut lines_vec: Vec<Line> = lines.to_vec();
+            self.sort_lines_direct(&mut lines_vec);
+            return self.write_output_direct(&lines_vec);
+        }
+
+        // For stable sort, use direct Line sorting with separate index array
+        if self.args.stable {
+            let mut lines_vec: Vec<Line> = lines.to_vec();
+            let result = self.sort_lines_direct_stable(&mut lines_vec);
+
+            // Handle unique for stable sort
+            if self.args.unique {
+                let mut unique_result = result;
+                unique_result.dedup_by(|a, b| {
+                    if self.config.keys.is_empty() {
+                        unsafe { a.as_bytes() == b.as_bytes() }
+                    } else {
+                        a.compare_with_keys(
+                            b,
+                            &self.config.keys,
+                            self.config.field_separator,
+                            &self.config,
+                        ) == Ordering::Equal
+                    }
+                });
+                return self.write_output_direct(&unique_result);
+            }
+
+            return self.write_output_direct(&result);
+        }
+
+        // For non-stable but unique case, use SortableLine wrapper
         let mut sortable_lines: Vec<SortableLine> = lines
             .iter()
             .enumerate()
@@ -235,8 +410,34 @@ impl CoreSort {
             })
             .collect();
 
-        // Sort the lines
-        self.sort_lines(&mut sortable_lines);
+        // Create comparison cache for complex sorts
+        let cache = if self.args.numeric_sort || self.config.ignore_case || self.args.random_sort {
+            Some(Arc::new(ComparisonCache::new(lines, &self.config)))
+        } else {
+            None
+        };
+
+        // Sort the lines with cache
+        self.sort_lines_with_cache(&mut sortable_lines, cache.as_ref());
+
+        // Handle unique for non-stable sort
+        if self.args.unique {
+            // Dedup after sorting
+            sortable_lines.dedup_by(|a, b| {
+                if let Some(cache) = cache.as_ref() {
+                    self.compare_with_cache(a, b, cache) == Ordering::Equal
+                } else if self.config.keys.is_empty() {
+                    unsafe { a.line.as_bytes() == b.line.as_bytes() }
+                } else {
+                    a.line.compare_with_keys(
+                        &b.line,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    ) == Ordering::Equal
+                }
+            });
+        }
 
         // Write output
         self.write_output(&sortable_lines)
@@ -255,14 +456,14 @@ impl CoreSort {
         let safe_memory = available_memory.saturating_sub(512);
 
         let memory_limit = if file_size > 1024 * 1024 * 1024 {
-            // Files > 1GB: use up to 50% of safe memory
-            (safe_memory / 2).max(256) // At least 256MB
+            // Files > 1GB: use smaller chunks for better memory efficiency (like rustcoreutils)
+            (safe_memory / 10).max(100) // Reduced from /2 to /10
         } else if file_size > 200 * 1024 * 1024 {
-            // Files > 200MB: use up to 60% of safe memory
-            (safe_memory * 3 / 5).max(128) // At least 128MB
+            // Files > 200MB: use moderate chunks
+            (safe_memory / 8).max(64) // Reduced from *3/5 to /8
         } else {
-            // Smaller files: use up to 75% of safe memory
-            (safe_memory * 3 / 4).max(64) // At least 64MB
+            // Smaller files: can use more memory
+            (safe_memory / 4).max(32) // Reduced from *3/4 to /4
         };
 
         // Create external sorter
@@ -561,6 +762,15 @@ impl CoreSort {
 
     /// Sort lines using hybrid algorithm selection for maximum performance
     fn sort_lines(&self, lines: &mut [SortableLine]) {
+        self.sort_lines_with_cache(lines, None)
+    }
+
+    /// Sort lines with optional comparison cache
+    fn sort_lines_with_cache(
+        &self,
+        lines: &mut [SortableLine],
+        cache: Option<&Arc<ComparisonCache>>,
+    ) {
         // **RANDOM SORT: Group identical lines and shuffle groups**
         if self.args.random_sort {
             self.random_sort_lines(lines);
@@ -657,9 +867,9 @@ impl CoreSort {
         // Fall back to comparison-based sorting for other cases
         const PARALLEL_THRESHOLD: usize = 8192;
         if lines.len() >= PARALLEL_THRESHOLD && num_cpus::get() > 1 {
-            self.parallel_sort_lines(lines);
+            self.parallel_sort_lines_with_cache(lines, cache);
         } else {
-            self.sequential_sort_lines(lines);
+            self.sequential_sort_lines_with_cache(lines, cache);
         }
     }
 
@@ -702,39 +912,91 @@ impl CoreSort {
         }
     }
 
-    /// Parallel sorting implementation (mimicking GNU sort's merge tree approach)
-    fn parallel_sort_lines(&self, lines: &mut [SortableLine]) {
+    /// Parallel sorting with optional cache
+    fn parallel_sort_lines_with_cache(
+        &self,
+        lines: &mut [SortableLine],
+        cache: Option<&Arc<ComparisonCache>>,
+    ) {
         use rayon::prelude::*;
 
-        lines.par_sort_unstable_by(|a, b| {
-            a.line.compare_with_keys(
-                &b.line,
-                &self.config.keys,
-                self.config.field_separator,
-                &self.config,
-            )
-        });
-
-        // Post-process for stable sort if needed
+        // For stable sort, use par_sort_by with index comparison
         if self.args.stable {
-            self.make_stable_by_index(lines);
+            lines.par_sort_by(|a, b| {
+                let cmp = if let Some(cache) = cache {
+                    self.compare_with_cache(a, b, cache)
+                } else {
+                    a.line.compare_with_keys(
+                        &b.line,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    )
+                };
+                if cmp == Ordering::Equal {
+                    // Use original index for stability
+                    a.original_index.cmp(&b.original_index)
+                } else {
+                    cmp
+                }
+            });
+        } else {
+            // Use unstable sort for better performance
+            lines.par_sort_unstable_by(|a, b| {
+                if let Some(cache) = cache {
+                    self.compare_with_cache(a, b, cache)
+                } else {
+                    a.line.compare_with_keys(
+                        &b.line,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    )
+                }
+            });
         }
     }
 
-    /// Sequential sorting implementation (for small datasets)
-    fn sequential_sort_lines(&self, lines: &mut [SortableLine]) {
-        lines.sort_by(|a, b| {
-            a.line.compare_with_keys(
-                &b.line,
-                &self.config.keys,
-                self.config.field_separator,
-                &self.config,
-            )
-        });
-
-        // Handle stable sort requirement
+    /// Sequential sorting with optional cache
+    fn sequential_sort_lines_with_cache(
+        &self,
+        lines: &mut [SortableLine],
+        cache: Option<&Arc<ComparisonCache>>,
+    ) {
         if self.args.stable {
-            self.make_stable_by_index(lines);
+            // Use stable sort with index comparison
+            lines.sort_by(|a, b| {
+                let cmp = if let Some(cache) = cache {
+                    self.compare_with_cache(a, b, cache)
+                } else {
+                    a.line.compare_with_keys(
+                        &b.line,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    )
+                };
+                if cmp == Ordering::Equal {
+                    // Use original index for stability
+                    a.original_index.cmp(&b.original_index)
+                } else {
+                    cmp
+                }
+            });
+        } else {
+            // Use unstable sort for better performance
+            lines.sort_unstable_by(|a, b| {
+                if let Some(cache) = cache {
+                    self.compare_with_cache(a, b, cache)
+                } else {
+                    a.line.compare_with_keys(
+                        &b.line,
+                        &self.config.keys,
+                        self.config.field_separator,
+                        &self.config,
+                    )
+                }
+            });
         }
     }
 
@@ -928,24 +1190,154 @@ impl CoreSort {
         }
     }
 
-    /// Make sort stable by using original line indices as tie-breaker
-    fn make_stable_by_index(&self, lines: &mut [SortableLine]) {
-        // Stable sort is already handled by using sort_by instead of sort_unstable_by
-        // and falling back to original_index for equal elements
-        lines.sort_by(|a, b| {
-            let primary_cmp = a.line.compare_with_keys(
-                &b.line,
-                &self.config.keys,
-                self.config.field_separator,
-                &self.config,
-            );
+    /// Direct sorting without SortableLine wrapper for better performance
+    fn sort_lines_direct(&self, lines: &mut [Line]) {
+        use rayon::prelude::*;
 
-            // Use original index as tie-breaker for stability
-            match primary_cmp {
-                std::cmp::Ordering::Equal => a.original_index.cmp(&b.original_index),
-                other => other,
+        const PARALLEL_THRESHOLD: usize = 8192;
+
+        // Handle random sort
+        if self.args.random_sort {
+            self.random_sort_lines_direct(lines);
+            return;
+        }
+
+        // Handle numeric sort with radix optimization
+        if self.args.numeric_sort && lines.len() >= 1000 {
+            let use_parallel = lines.len() >= PARALLEL_THRESHOLD && num_cpus::get() > 1;
+            let radix_sorter = RadixSort::new(use_parallel);
+            radix_sorter.sort_numeric_lines(lines);
+            if self.args.reverse {
+                lines.reverse();
             }
-        });
+            return;
+        }
+
+        // Use parallel or sequential sort based on size
+        if lines.len() >= PARALLEL_THRESHOLD && num_cpus::get() > 1 {
+            lines.par_sort_unstable_by(|a, b| {
+                let cmp = a.compare_with_keys(
+                    b,
+                    &self.config.keys,
+                    self.config.field_separator,
+                    &self.config,
+                );
+                if self.args.reverse {
+                    cmp.reverse()
+                } else {
+                    cmp
+                }
+            });
+        } else {
+            lines.sort_unstable_by(|a, b| {
+                let cmp = a.compare_with_keys(
+                    b,
+                    &self.config.keys,
+                    self.config.field_separator,
+                    &self.config,
+                );
+                if self.args.reverse {
+                    cmp.reverse()
+                } else {
+                    cmp
+                }
+            });
+        }
+    }
+
+    /// Random sort without SortableLine wrapper
+    fn random_sort_lines_direct(&self, lines: &mut [Line]) {
+        // Group identical lines
+        let mut groups: HashMap<Vec<u8>, Vec<usize>> = HashMap::new();
+        for (idx, line) in lines.iter().enumerate() {
+            let key = unsafe { line.as_bytes().to_vec() };
+            groups.entry(key).or_default().push(idx);
+        }
+
+        // Create shuffled order for groups
+        let mut rng = if let Some(seed) = self.args.random_seed {
+            StdRng::seed_from_u64(seed)
+        } else {
+            StdRng::from_entropy()
+        };
+
+        let mut group_keys: Vec<Vec<u8>> = groups.keys().cloned().collect();
+        for _ in 0..group_keys.len() {
+            let i = rng.gen_range(0..group_keys.len());
+            let j = rng.gen_range(0..group_keys.len());
+            group_keys.swap(i, j);
+        }
+
+        // Rebuild lines array in shuffled order
+        let mut result = Vec::with_capacity(lines.len());
+        for key in group_keys {
+            if let Some(indices) = groups.get(&key) {
+                for &idx in indices {
+                    result.push(lines[idx]);
+                }
+            }
+        }
+
+        lines.copy_from_slice(&result);
+    }
+
+    /// Write output directly from Line slice (no SortableLine wrapper)
+    fn write_output_direct(&self, lines: &[Line]) -> io::Result<()> {
+        let mut output: Box<dyn Write> = if let Some(output_file) = &self.args.output {
+            Box::new(BufWriter::new(File::create(output_file)?))
+        } else {
+            Box::new(BufWriter::new(std::io::stdout()))
+        };
+
+        for line in lines {
+            unsafe {
+                output.write_all(line.as_bytes())?;
+                output.write_all(b"\n")?;
+            }
+        }
+
+        output.flush()?;
+        Ok(())
+    }
+
+    /// Direct stable sort implementation - sorts Lines directly with index tracking
+    fn sort_lines_direct_stable(&self, lines: &mut [Line]) -> Vec<Line> {
+        use rayon::prelude::*;
+
+        // Create array of (Line, original_index) tuples for stability
+        let mut indexed_lines: Vec<(Line, usize)> = lines
+            .iter()
+            .enumerate()
+            .map(|(idx, line)| (*line, idx))
+            .collect();
+
+        const PARALLEL_THRESHOLD: usize = 8192;
+
+        // Use parallel or sequential stable sort
+        if indexed_lines.len() >= PARALLEL_THRESHOLD && num_cpus::get() > 1 {
+            indexed_lines.par_sort_by(|a, b| {
+                let cmp = self.compare_lines_direct(&a.0, &b.0);
+                if cmp == Ordering::Equal {
+                    // Use original index for stability
+                    a.1.cmp(&b.1)
+                } else {
+                    cmp
+                }
+            });
+        } else {
+            indexed_lines.sort_by(|a, b| {
+                let cmp = self.compare_lines_direct(&a.0, &b.0);
+                if cmp == Ordering::Equal {
+                    // Use original index for stability
+                    a.1.cmp(&b.1)
+                } else {
+                    cmp
+                }
+            });
+        }
+
+        // Extract sorted Lines
+        indexed_lines.into_iter().map(|(line, _)| line).collect()
     }
 
     /// Write sorted output
@@ -956,26 +1348,12 @@ impl CoreSort {
             Box::new(BufWriter::new(std::io::stdout()))
         };
 
-        let mut prev_line: Option<&SortableLine> = None;
-
+        // Regular output - unique is handled earlier in the pipeline
         for line in lines {
-            // Handle unique flag
-            if self.args.unique {
-                if let Some(prev) = prev_line {
-                    unsafe {
-                        if prev.line.as_bytes() == line.line.as_bytes() {
-                            continue; // Skip duplicate
-                        }
-                    }
-                }
-            }
-
             unsafe {
                 output.write_all(line.line.as_bytes())?;
                 output.write_all(b"\n")?;
             }
-
-            prev_line = Some(line);
         }
 
         output.flush()?;
@@ -988,6 +1366,113 @@ impl CoreSort {
 struct SortableLine {
     line: Line,
     original_index: usize,
+}
+
+/// Cached comparison data for a line
+#[derive(Debug, Clone)]
+struct LineCacheEntry {
+    /// Numeric value if line is numeric
+    numeric_value: Option<f64>,
+    /// Case-folded version for case-insensitive comparison
+    folded_bytes: Option<Vec<u8>>,
+    /// Hash value for random sort
+    hash_value: Option<u64>,
+}
+
+/// Cache for pre-computed comparison data
+struct ComparisonCache {
+    entries: Vec<LineCacheEntry>,
+}
+
+impl ComparisonCache {
+    fn new(lines: &[Line], config: &SortConfig) -> Self {
+        use rayon::prelude::*;
+
+        // Pre-compute comparison data in parallel
+        let entries: Vec<LineCacheEntry> = lines
+            .par_iter()
+            .map(|line| {
+                let mut entry = LineCacheEntry {
+                    numeric_value: None,
+                    folded_bytes: None,
+                    hash_value: None,
+                };
+
+                // Pre-compute numeric value if needed
+                if config.mode == crate::config::SortMode::Numeric {
+                    unsafe {
+                        let bytes = line.as_bytes();
+                        entry.numeric_value = Self::parse_numeric(bytes);
+                    }
+                }
+
+                // Pre-compute case-folded version if needed
+                if config.ignore_case {
+                    unsafe {
+                        let bytes = line.as_bytes();
+                        entry.folded_bytes = Some(bytes.to_ascii_lowercase());
+                    }
+                }
+
+                // Pre-compute hash for random sort
+                if config.mode == crate::config::SortMode::Random {
+                    use std::hash::{Hash, Hasher};
+                    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                    unsafe {
+                        line.as_bytes().hash(&mut hasher);
+                    }
+                    entry.hash_value = Some(hasher.finish());
+                }
+
+                entry
+            })
+            .collect();
+
+        Self { entries }
+    }
+
+    fn parse_numeric(bytes: &[u8]) -> Option<f64> {
+        // Skip leading whitespace
+        let trimmed = bytes
+            .iter()
+            .position(|&b| !b.is_ascii_whitespace())
+            .map(|pos| &bytes[pos..])
+            .unwrap_or(bytes);
+
+        if trimmed.is_empty() {
+            return Some(0.0);
+        }
+
+        // Try to parse as number
+        let mut end = 0;
+        let mut has_digit = false;
+        let mut has_dot = false;
+
+        for (i, &b) in trimmed.iter().enumerate() {
+            match b {
+                b'0'..=b'9' => {
+                    has_digit = true;
+                    end = i + 1;
+                }
+                b'.' if !has_dot => {
+                    has_dot = true;
+                    end = i + 1;
+                }
+                b'-' | b'+' if i == 0 => {
+                    end = i + 1;
+                }
+                _ => break,
+            }
+        }
+
+        if has_digit && end > 0 {
+            std::str::from_utf8(&trimmed[..end])
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+        } else {
+            Some(0.0)
+        }
+    }
 }
 
 // Implement Clone is already derived above

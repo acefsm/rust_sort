@@ -1,50 +1,7 @@
-# Rust build artifacts
-/target/
-# Note: Cargo.lock is committed for binary projects to ensure reproducible builds
-
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Temporary files
-*.tmp
-*.temp
+target/
+*.txt
 *.log
-
-# Backup files
-*.bak
-*.orig
-
-# Test artifacts
-/test_data/
-/benchmark_results/
-
-# Generated test data files
-test_nums_*.txt
-test_strings_*.txt
-test_floats_*.txt
-test_mixed_*.txt
-test_dups_*.txt
-test_sorted.txt
-fresh_benchmark_results.txt
-
-# Coverage reports
-/coverage/
-tarpaulin-report.html
-lcov.info
-
-# Profiling data
-perf.data*
-flamegraph.svg
+Cargo.lock
+.DS_Store
+bench*.log
+logperf

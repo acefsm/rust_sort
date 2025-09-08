@@ -41,6 +41,7 @@ pub fn sort(config: &SortConfig, input_files: &[String]) -> SortResult<i32> {
         human_numeric_sort: matches!(config.mode, crate::config::SortMode::HumanNumeric),
         version_sort: matches!(config.mode, crate::config::SortMode::Version),
         random_sort: matches!(config.mode, crate::config::SortMode::Random),
+        random_seed: None, // Use random seed
         ignore_case: config.ignore_case,
         unique: config.unique,
         stable: config.stable,
