@@ -101,12 +101,10 @@ impl ExternalSort {
         } else {
             simple_lines.sort_unstable_by(|a, b| a.compare_lexicographic(b));
         }
-        
+
         // Remove duplicates if unique mode
         if unique {
-            simple_lines.dedup_by(|a, b| unsafe {
-                a.as_bytes() == b.as_bytes()
-            });
+            simple_lines.dedup_by(|a, b| unsafe { a.as_bytes() == b.as_bytes() });
         }
 
         // Write sorted output
@@ -489,7 +487,7 @@ impl ExternalSort {
                 }
                 last_line = Some(item.line.clone());
             }
-            
+
             writeln!(output, "{}", item.line)?;
 
             // Read next line from the same reader
