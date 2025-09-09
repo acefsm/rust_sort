@@ -483,7 +483,7 @@ impl CoreSort {
             let temp_path = temp_file.path().to_path_buf();
 
             // Sort to temporary file, then copy to stdout
-            external_sorter.sort_file(path, &temp_path, self.args.numeric_sort)?;
+            external_sorter.sort_file(path, &temp_path, self.args.numeric_sort, self.args.unique)?;
 
             // Copy to stdout
             let mut input = std::fs::File::open(&temp_path)?;
@@ -492,7 +492,7 @@ impl CoreSort {
             return Ok(());
         };
 
-        external_sorter.sort_file(path, &output_path, self.args.numeric_sort)
+        external_sorter.sort_file(path, &output_path, self.args.numeric_sort, self.args.unique)
     }
 
     /// Get available system memory in MB

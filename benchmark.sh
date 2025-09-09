@@ -473,6 +473,51 @@ if [ "$LARGE_TESTS" = "true" ]; then
     
     # 10M test
     run_test_suite 10000000 "10m" "10M lines"
+    
+    # External sort unique test (150MB file to trigger external sort path)
+    echo -e "${BOLD}${HEADER}=== EXTERNAL SORT CORRECTNESS TEST ===${NC}\n"
+    
+    # Generate 10M random strings (each 5-50 chars) = ~270MB file  
+    echo -e "${INFO}Generating external sort test data (270MB file to trigger external sort path)...${NC}"
+    
+    # Generate test data using dedicated generator
+    ./generate_test_data.js 10000000 external_test_data.txt
+    echo -e "${INFO}Generated external test file: $(ls -lh external_test_data.txt | awk '{print $5}')${NC}"
+    
+    # Test external sort unique functionality
+    echo -e "${TEST}Testing: External sort unique (10M lines, 270MB)${NC}"
+    echo "  File: external_test_data.txt | Flags: '-u'"
+    echo -e "  ${INFO}This test verifies external sort correctly handles unique flag for large files${NC}"
+    
+    # Reference output
+    echo -e "  ${INFO}Generating reference output...${NC}"
+    $REFERENCE_SORT -u external_test_data.txt > reference_external_unique.txt
+    
+    # Our output
+    echo -e "  ${INFO}Testing our implementation...${NC}"
+    ./target/release/sort -u external_test_data.txt > our_external_unique.txt
+    
+    # Check correctness using MD5
+    reference_md5=$(md5sum reference_external_unique.txt 2>/dev/null | cut -d' ' -f1 || md5 -q reference_external_unique.txt 2>/dev/null)
+    our_md5=$(md5sum our_external_unique.txt 2>/dev/null | cut -d' ' -f1 || md5 -q our_external_unique.txt 2>/dev/null)
+    
+    echo -e "  ${INFO}Checking correctness with MD5...${NC}"
+    echo "    Reference MD5: $reference_md5"
+    echo "    Our MD5:       $our_md5"
+    
+    if [ "$reference_md5" = "$our_md5" ]; then
+        echo -e "  ${SUCCESS}✓ External sort unique: CORRECT${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "  ${ERROR}✗ External sort unique: INCORRECT - MD5 mismatch${NC}"
+        echo -e "  ${ERROR}This indicates external sort is not properly handling unique flag${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    
+    # Cleanup
+    rm -f external_test_data.txt reference_external_unique.txt our_external_unique.txt
+    
+    echo ""
 fi
 
 # Extra large data tests if requested

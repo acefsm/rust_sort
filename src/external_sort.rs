@@ -55,20 +55,21 @@ impl ExternalSort {
         input_path: &Path,
         output_path: &Path,
         numeric: bool,
+        unique: bool,
     ) -> io::Result<()> {
         // Step 1: Estimate file size and determine strategy
         let file_size = std::fs::metadata(input_path)?.len() as usize;
 
         if file_size <= self.max_chunk_size {
             // File fits in memory - use in-memory sorting
-            return self.sort_in_memory(input_path, output_path, numeric);
+            return self.sort_in_memory(input_path, output_path, numeric, unique);
         }
 
         // Step 2: Split file into sorted chunks
         let chunk_files = self.create_sorted_chunks(input_path, numeric)?;
 
         // Step 3: Merge sorted chunks
-        self.merge_sorted_chunks(&chunk_files, output_path, numeric)?;
+        self.merge_sorted_chunks(&chunk_files, output_path, numeric, unique)?;
 
         Ok(())
     }
@@ -79,6 +80,7 @@ impl ExternalSort {
         input_path: &Path,
         output_path: &Path,
         numeric: bool,
+        unique: bool,
     ) -> io::Result<()> {
         let mapped_file = MappedFile::new(input_path)?;
         let lines = mapped_file.lines();
@@ -98,6 +100,13 @@ impl ExternalSort {
             simple_lines.sort_unstable_by(|a, b| a.compare_numeric(b));
         } else {
             simple_lines.sort_unstable_by(|a, b| a.compare_lexicographic(b));
+        }
+        
+        // Remove duplicates if unique mode
+        if unique {
+            simple_lines.dedup_by(|a, b| unsafe {
+                a.as_bytes() == b.as_bytes()
+            });
         }
 
         // Write sorted output
@@ -377,6 +386,7 @@ impl ExternalSort {
         chunk_files: &[PathBuf],
         output_path: &Path,
         _numeric: bool,
+        unique: bool,
     ) -> io::Result<()> {
         use std::cmp::Reverse;
         use std::collections::BinaryHeap;
@@ -456,7 +466,30 @@ impl ExternalSort {
         }
 
         // Merge process
+        let mut last_line: Option<String> = None;
         while let Some(Reverse(item)) = heap.pop() {
+            // If unique mode, skip duplicates
+            if unique {
+                if let Some(ref prev) = last_line {
+                    if prev == &item.line {
+                        // Skip duplicate, but still read next line from same reader
+                        let reader_idx = item.reader_index;
+                        let mut line = String::new();
+                        if readers[reader_idx].read_line(&mut line)? > 0 {
+                            if line.ends_with('\n') {
+                                line.pop();
+                            }
+                            heap.push(Reverse(MergeItem {
+                                line,
+                                reader_index: reader_idx,
+                            }));
+                        }
+                        continue;
+                    }
+                }
+                last_line = Some(item.line.clone());
+            }
+            
             writeln!(output, "{}", item.line)?;
 
             // Read next line from the same reader
@@ -495,7 +528,7 @@ mod tests {
 
         // Sort with external sorter
         let sorter = ExternalSort::new(1, false, true, None)?; // 1MB limit
-        sorter.sort_file(&input_file, &output_file, true)?;
+        sorter.sort_file(&input_file, &output_file, true, false)?;
 
         // Verify output
         let output_content = fs::read_to_string(&output_file)?;
