@@ -355,6 +355,8 @@ impl Line {
                         a_line.compare_dictionary_order(&b_line)
                     } else if key.options.ignore_case {
                         a_line.compare_ignore_case(&b_line)
+                    } else if key.options.ignore_leading_blanks {
+                        a_line.compare_lexicographic_with_blanks(&b_line, true)
                     } else {
                         a_line.compare_lexicographic(&b_line)
                     };
@@ -425,6 +427,8 @@ impl Line {
                     self.compare_dictionary_order(other)
                 } else if config.ignore_case {
                     self.compare_ignore_case(other)
+                } else if config.ignore_leading_blanks {
+                    self.compare_lexicographic_with_blanks(other, true)
                 } else {
                     self.compare_lexicographic(other)
                 }
@@ -433,6 +437,8 @@ impl Line {
                 // For other modes, also check dictionary_order flag
                 if config.dictionary_order {
                     self.compare_dictionary_order(other)
+                } else if config.ignore_leading_blanks {
+                    self.compare_lexicographic_with_blanks(other, true)
                 } else {
                     self.compare_lexicographic(other)
                 }
@@ -633,6 +639,28 @@ impl Line {
     pub fn compare_lexicographic(&self, other: &Line) -> Ordering {
         let a_bytes = unsafe { self.as_bytes() };
         let b_bytes = unsafe { other.as_bytes() };
+
+        // Use locale-aware comparison if enabled
+        if locale::LocaleConfig::is_enabled() {
+            locale::smart_compare(a_bytes, b_bytes, false)
+        } else {
+            // Use SIMD for maximum performance when locale is not enabled
+            SIMDCompare::compare_bytes_simd(a_bytes, b_bytes)
+        }
+    }
+    
+    /// Lexicographic comparison with option to ignore leading blanks
+    pub fn compare_lexicographic_with_blanks(&self, other: &Line, ignore_leading_blanks: bool) -> Ordering {
+        let mut a_bytes = unsafe { self.as_bytes() };
+        let mut b_bytes = unsafe { other.as_bytes() };
+        
+        if ignore_leading_blanks {
+            // Skip leading blanks (spaces and tabs)
+            let a_start = a_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(a_bytes.len());
+            let b_start = b_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(b_bytes.len());
+            a_bytes = &a_bytes[a_start..];
+            b_bytes = &b_bytes[b_start..];
+        }
 
         // Use locale-aware comparison if enabled
         if locale::LocaleConfig::is_enabled() {

@@ -474,6 +474,85 @@ if [ "$LARGE_TESTS" = "true" ]; then
     # 10M test
     run_test_suite 10000000 "10m" "10M lines"
     
+    # Test -b flag with different character sets
+    echo -e "${BOLD}${HEADER}=== CHARACTER SET TESTS WITH -b FLAG ===${NC}\n"
+    
+    echo -e "${INFO}Testing -b flag (ignore leading blanks) with different character sets...${NC}"
+    
+    # English characters
+    echo -e "${TEST}Testing: English characters with -b flag${NC}"
+    ./test_data_generator.js 'e+' 5 20 10000 > test_en_b.txt 2>/dev/null
+    $REFERENCE_SORT -b test_en_b.txt > reference_en_b.txt
+    ./target/release/sort -b test_en_b.txt > our_en_b.txt
+    
+    if diff reference_en_b.txt our_en_b.txt > /dev/null; then
+        echo -e "  ${SUCCESS}✓ English with -b: CORRECT${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "  ${ERROR}✗ English with -b: INCORRECT${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    
+    # Russian characters
+    echo -e "${TEST}Testing: Russian characters with -b flag${NC}"
+    ./test_data_generator.js 'r' 5 20 10000 > test_ru_b.txt 2>/dev/null
+    $REFERENCE_SORT -b test_ru_b.txt > reference_ru_b.txt
+    ./target/release/sort -b test_ru_b.txt > our_ru_b.txt
+    
+    if diff reference_ru_b.txt our_ru_b.txt > /dev/null; then
+        echo -e "  ${SUCCESS}✓ Russian with -b: CORRECT${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "  ${ERROR}✗ Russian with -b: INCORRECT${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    
+    # Mixed English + Russian
+    echo -e "${TEST}Testing: Mixed English+Russian with -b flag${NC}"
+    ./test_data_generator.js 'er+' 5 20 10000 > test_mixed_b.txt 2>/dev/null
+    $REFERENCE_SORT -b test_mixed_b.txt > reference_mixed_b.txt
+    ./target/release/sort -b test_mixed_b.txt > our_mixed_b.txt
+    
+    if diff reference_mixed_b.txt our_mixed_b.txt > /dev/null; then
+        echo -e "  ${SUCCESS}✓ Mixed chars with -b: CORRECT${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "  ${ERROR}✗ Mixed chars with -b: INCORRECT${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    
+    # Test with actual leading spaces/tabs
+    echo -e "${TEST}Testing: Leading spaces and tabs with -b flag${NC}"
+    cat > test_leading_b.txt << 'EOF'
+	zebra
+ 	apple
+		banana
+   cherry
+	 	dog
+     elephant
+  	fox
+EOF
+    
+    $REFERENCE_SORT -b test_leading_b.txt > reference_leading_b.txt
+    ./target/release/sort -b test_leading_b.txt > our_leading_b.txt
+    
+    if diff reference_leading_b.txt our_leading_b.txt > /dev/null; then
+        echo -e "  ${SUCCESS}✓ Leading blanks with -b: CORRECT${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "  ${ERROR}✗ Leading blanks with -b: INCORRECT${NC}"
+        echo -e "  ${DIM}Expected order:${NC}"
+        cat reference_leading_b.txt | head -3
+        echo -e "  ${DIM}Got:${NC}"
+        cat our_leading_b.txt | head -3
+        FAILED=$((FAILED + 1))
+    fi
+    
+    # Cleanup
+    rm -f test_*_b.txt reference_*_b.txt our_*_b.txt
+    
+    echo ""
+    
     # External sort unique test (150MB file to trigger external sort path)
     echo -e "${BOLD}${HEADER}=== EXTERNAL SORT CORRECTNESS TEST ===${NC}\n"
     
