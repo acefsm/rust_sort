@@ -648,16 +648,26 @@ impl Line {
             SIMDCompare::compare_bytes_simd(a_bytes, b_bytes)
         }
     }
-    
+
     /// Lexicographic comparison with option to ignore leading blanks
-    pub fn compare_lexicographic_with_blanks(&self, other: &Line, ignore_leading_blanks: bool) -> Ordering {
+    pub fn compare_lexicographic_with_blanks(
+        &self,
+        other: &Line,
+        ignore_leading_blanks: bool,
+    ) -> Ordering {
         let mut a_bytes = unsafe { self.as_bytes() };
         let mut b_bytes = unsafe { other.as_bytes() };
-        
+
         if ignore_leading_blanks {
             // Skip leading blanks (spaces and tabs)
-            let a_start = a_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(a_bytes.len());
-            let b_start = b_bytes.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(b_bytes.len());
+            let a_start = a_bytes
+                .iter()
+                .position(|&b| b != b' ' && b != b'\t')
+                .unwrap_or(a_bytes.len());
+            let b_start = b_bytes
+                .iter()
+                .position(|&b| b != b' ' && b != b'\t')
+                .unwrap_or(b_bytes.len());
             a_bytes = &a_bytes[a_start..];
             b_bytes = &b_bytes[b_start..];
         }
