@@ -718,11 +718,20 @@ impl Line {
     /// Filter bytes to keep only alphanumeric characters and blanks (spaces/tabs)
     /// This implements GNU sort's dictionary order (-d flag)
     fn filter_dictionary_order(&self, bytes: &[u8]) -> Vec<u8> {
-        bytes
-            .iter()
-            .filter(|&&b| b.is_ascii_alphanumeric() || b == b' ' || b == b'\t')
-            .copied()
-            .collect()
+        // Convert to string to properly handle Unicode
+        if let Ok(s) = std::str::from_utf8(bytes) {
+            s.chars()
+                .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '\t')
+                .collect::<String>()
+                .into_bytes()
+        } else {
+            // Fallback for non-UTF8 - filter ASCII only
+            bytes
+                .iter()
+                .filter(|&&b| b.is_ascii_alphanumeric() || b == b' ' || b == b'\t')
+                .copied()
+                .collect()
+        }
     }
 
     /// Month-aware comparison (GNU sort compatible)
